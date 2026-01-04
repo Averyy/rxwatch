@@ -16,9 +16,9 @@ dist/
 .env.test.local
 .env.production.local
 
-# PocketBase data
-pocketbase/pb_data/
-pb_data/
+# Database dumps (large files, sync separately)
+db/dumps/*.sql
+db/dumps/*.sql.gz
 
 # Debug logs
 npm-debug.log*

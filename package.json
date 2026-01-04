@@ -1,19 +1,36 @@
 {
   "name": "rxwatch",
-  "version": "1.0.0",
-  "description": "**Canadian Drug Shortage Intelligence Tool**",
-  "main": "index.js",
+  "version": "0.1.0",
+  "private": true,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "next dev -p 5000",
+    "build": "next build",
+    "start": "next start -p 5000",
+    "type-check": "tsc --noEmit",
+    "lint": "next lint",
+    "db:start": "docker volume create rxwatch_postgres_data 2>/dev/null || true && docker compose up -d",
+    "db:stop": "docker compose down",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:dump": "docker exec rxwatch-db pg_dump -U rxwatch rxwatch > db/dumps/rxwatch-$(date +%Y%m%d-%H%M%S).sql",
+    "db:restore": "docker exec -i rxwatch-db psql -U rxwatch rxwatch < ",
+    "db:reset": "docker compose down && docker volume rm rxwatch_postgres_data 2>/dev/null || true && docker volume create rxwatch_postgres_data && docker compose up -d"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "devDependencies": {
     "@types/node": "^25.0.3",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
     "dotenv": "^17.2.3",
+    "drizzle-kit": "^0.31.8",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.1",
+    "next": "15",
+    "postgres": "^3.4.7",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
   }
 }

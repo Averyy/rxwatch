@@ -1,0 +1,32 @@
+# Local development docker-compose
+# Usage: docker compose up -d
+#
+# For production, use docker-compose.prod.yml
+# This only runs PostgreSQL - the Next.js app runs locally with `yarn dev`
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: rxwatch-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rxwatch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rxwatch_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-rxwatch}
+    volumes:
+      - rxwatch_postgres_data:/var/lib/postgresql/data
+      - ./db/dumps:/dumps  # For pg_dump/pg_restore
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rxwatch -d rxwatch"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  rxwatch_postgres_data:
+    # Use external volume to persist data across docker compose down
+    # Create with: docker volume create rxwatch_postgres_data
+    # Or remove this 'external' block and data resets each 'docker compose down -v'
+    external: true
+    name: rxwatch_postgres_data

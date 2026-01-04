@@ -23,7 +23,7 @@
 
 A simple tool that answers: **"My medication isn't available — what are my options?"**
 
-Plus: **Get notified when anything changes for medications you care about.**
+Plus: **Get push notifications via iOS app when anything changes for medications you care about.**
 
 ---
 
@@ -48,16 +48,42 @@ Plus: **Get notified when anything changes for medications you care about.**
 
 ## Core Features
 
-### MVP (Phase 1)
+### Web (v1) - Public Lookup
 
-#### 1. Shortage Lookup
-- Enter drug name, DIN, or scan barcode
-- See: Is it in shortage? (Yes/No)
-- See: Expected resolution date
-- See: Severity tier (1/2/3)
-- See: Reason for shortage
+#### Pages Structure
 
-#### 2. Alternative Suggestions (THE MOAT)
+```
+/                           Homepage
+├── Global search bar (searches drugs + reports)
+├── Quick stats (active shortages, anticipated, to-be-discontinued)
+└── Recent reports (last 20 updates)
+
+/drugs                      AG Grid - all drugs with shortage history
+├── Columns: TBD
+├── Filters: TBD (filter by active/resolved status)
+├── Click row → /drugs/[din]
+└── ~10,000 rows (active or historical)
+
+/drugs/[din]                Drug detail page
+├── Drug info + current status
+├── All reports for this DIN (timeline)
+└── Alternatives section
+
+/reports                    AG Grid - all reports
+├── Columns: TBD
+├── Filters: TBD
+├── Click row → /reports/[reportId]
+└── 27,819 rows (virtualized)
+
+/reports/[reportId]         Report detail page
+├── Full report info
+├── Link to drug → /drugs/[din]
+└── Raw API data (collapsible)
+
+/about                      Static page
+```
+
+#### Alternative Suggestions (THE MOAT)
 Using Health Canada DPD data, automatically suggest:
 
 **Same Drug, Different Source:**
@@ -69,48 +95,42 @@ Using Health Canada DPD data, automatically suggest:
 - Same ATC class (requires doctor approval)
 - Ranked by: similarity, availability, common substitution patterns
 
-#### 3. DIN Notification System
-- Enter ANY DIN number
+---
+
+### iOS App - Watchlist + Notifications
+
+#### 4. Watchlist
+- Sign in with Apple
+- Save multiple medications
+- Dashboard showing status of all your meds
+- One-click to see alternatives for any
+
+#### 5. Push Notifications (FREE)
 - Get notified when:
   - New shortage reported
   - Shortage status changes (anticipated → active → resolved)
   - Expected end date changes
-  - New alternative becomes available
-- Notification channels: Email, SMS, Push
+  - Shortage resolved (good news!)
+- All notifications are free (Apple handles infrastructure)
 
-#### 4. Watchlist
-- Save multiple medications
-- Dashboard showing status of all your meds
-- One-click to see alternatives for any
+#### 6. Barcode Scanning
+- Scan medication barcode with camera
+- Instant lookup
 
 ---
 
 ### Phase 2 Features (Pharmacist Tools)
 
-#### 5. Pharmacist Dashboard
+#### 7. Pharmacist Dashboard
 - Bulk lookup (paste list of DIns)
 - Print patient handouts explaining shortage + options
 - Message templates for physicians
 - Daily digest: "New shortages affecting your common dispensed drugs"
 
-#### 6. Alternative Verification
+#### 8. Alternative Verification
 - Link to official monographs
 - Dosage equivalence calculator
 - Provincial formulary coverage check
-
----
-
-### Phase 3 Features (Enterprise)
-
-#### 7. API Access
-- Integrate shortage intelligence into pharmacy software
-- EMR integration for prescribers
-- Webhook notifications
-
-#### 8. Analytics
-- Shortage trends
-- Predictive alerts (pattern detection)
-- Regional availability differences
 
 ---
 
@@ -138,125 +158,63 @@ Using Health Canada DPD data, automatically suggest:
 4. Same ATC code level 4 (therapeutic alternatives)
 5. Same ATC code level 3 (broader alternatives, flag as "ask doctor")
 
-### Database Design
+### Database Design (PostgreSQL + Drizzle)
 
-**Why two tables for drugs/reports?**
+**Web (v1) - Just two tables:**
 - `drugs` = stable catalog of medications (one row per DIN)
 - `reports` = events that happen to medications (many per DIN over time)
-- Enables efficient queries: "show 20 most recent updates" without scanning all drugs
-- Standard normalized design, indexed for performance
 
-### PocketBase Collections
+**iOS App - Add user tables:**
+- `users` = Apple Sign-In users
+- `watchlist` = user → drug subscriptions
+- `device_tokens` = for push notifications
 
-**`drugs`** — The Catalog (one row per medication)
-```
-din (unique, indexed)         → Primary lookup key
-brand_name                    → "Metformin 500mg"
-brand_name_fr                 → French name
-active_ingredient (indexed)   → For same-ingredient alternatives
-strength, strength_unit       → "500", "mg"
-form, route                   → "tablet", "oral"
-atc_code (indexed)            → For therapeutic alternatives (ATC-4 level)
-company                       → Manufacturer
-dpd_id                        → Health Canada's internal ID
-current_status                → Computed: available | in_shortage | anticipated | discontinued
-active_report                 → Relation to current active report (if any)
-```
-
-**`reports`** — The Events (one row per shortage/discontinuation)
-```
-report_id (unique)            → From Drug Shortages Canada API
-din (indexed)                 → Links to drugs table
-type                          → shortage | discontinuation
-status                        → active | anticipated | resolved | avoided | discontinued | reversed
-reason                        → "Manufacturing delay"
-expected_end_date             → When shortage expected to resolve
-actual_end_date               → When it actually resolved
-company                       → Reporting company
-updated_at (indexed)          → For change detection + recent feed
-raw_json                      → Full API response
-```
-
-**`users`** (PocketBase built-in, extended)
-```
-email, phone, language (en/fr)
-notification_email, notification_sms (bools)
-```
-
-**`watchlist`** — User subscriptions
-```
-user (relation), din (indexed), notify_enabled, created
-```
-
-**`notifications`** — Audit log
-```
-user, report (relation), din, type, channel, sent_at
-```
-
-### Key Indexes
-| Collection | Field | Purpose |
-|------------|-------|---------|
-| drugs | din | Primary drug lookup |
-| drugs | active_ingredient | Same-ingredient alternatives |
-| drugs | atc_code | Therapeutic alternatives |
-| reports | din | Find all reports for a drug |
-| reports | updated_at | Recent feed + change detection |
-| watchlist | din | Find users watching a drug |
-
-### Notification System Design
-
-**Polling Strategy:**
-- Cron job every 15-30 minutes
-- Fetch all active/anticipated shortages from API
-- Compare to previous state in cache
-- Detect changes:
-  - New shortage (DIN not previously in shortage)
-  - Status change (anticipated → active, active → resolved)
-  - End date change
-  - Tier change
-- For each change, find users watching that DIN
-- Queue notifications
-
-**Rate Limit Consideration:**
-- 1000 requests/hour = ~16/minute
-- Batch requests efficiently
-- Cache aggressively (shortages don't change every second)
+See `CLAUDE.md` for full Drizzle schema.
 
 ---
 
 ## Tech Stack
 
-- **Frontend:** Next.js (React)
-- **Backend:** Next.js API routes
-- **Database:** PocketBase (SQLite + auth + admin UI)
-- **Notifications:**
-  - Email: Resend
-  - SMS: Twilio (Phase 2)
-  - Push: Web Push API (Phase 2)
-- **Cron/Jobs:** systemd timer or cron on VPS
-- **Hosting:** Self-hosted VPS (Next.js + PocketBase)
+### Web (v1)
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| Frontend | Next.js 15 + React 19 | App Router, SSR |
+| Data Grid | AG Grid Community | Interactive tables with custom styling |
+| Database | PostgreSQL (Docker) | Reliable, scalable |
+| ORM | Drizzle | Type-safe, fast |
+| i18n | next-intl | 5 languages |
+| Hosting | VPS + Caddy | Self-hosted |
+
+### iOS App
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| App | SwiftUI | Native iOS |
+| Auth | Apple Sign-In | Simple, trusted |
+| Push | APNS | Free notifications |
+| Barcode | AVFoundation | Native camera |
 
 ---
 
 ## MVP Scope (What to Build First)
 
-### Week 1-2: Core Search
+### Week 1-2: Core Search (Web)
 - [ ] Shortage lookup by drug name/DIN
 - [ ] Display shortage status + details
 - [ ] Basic alternative suggestions (same ingredient, different manufacturer)
+- [ ] Recent updates feed
 
-### Week 3-4: Notifications MVP
-- [ ] User accounts (email/password or magic link)
-- [ ] Add DIN to watchlist
-- [ ] Email notifications on shortage changes
-- [ ] Basic watchlist dashboard
-
-### Week 5-6: Polish + Launch
+### Week 3-4: Polish + Launch (Web)
 - [ ] Mobile-responsive design
 - [ ] All 5 languages (EN/FR/ZH-Hans/ZH-Hant/ES) - UI only
 - [ ] Landing page + SEO
 - [ ] Patient-friendly language throughout
 - [ ] "Verify with your pharmacist" disclaimers
+
+### Week 5-6: iOS App
+- [ ] SwiftUI app structure
+- [ ] Apple Sign-In
+- [ ] Watchlist + push notifications
+- [ ] Barcode scanning
 
 ---
 
@@ -264,8 +222,8 @@ user, report (relation), din, type, channel, sent_at
 
 | Tier | Price | Features |
 |------|-------|----------|
-| Free (Patients) | $0 | Lookup, 5 watchlist items, email notifications |
-| Plus | $5/mo | Unlimited watchlist, SMS notifications, no ads |
+| Free (Web) | $0 | Lookup, alternatives, feed |
+| Free (iOS) | $0 | Watchlist, push notifications |
 | Pharmacy | $49/mo | Dashboard, bulk lookup, print handouts, API access |
 | Enterprise | Custom | EMR integration, analytics, SLA |
 
@@ -306,16 +264,17 @@ user, report (relation), din, type, channel, sent_at
 ## Success Metrics
 
 ### MVP Success (3 months)
-- 1,000 registered users
-- 5,000 watchlist items
-- 500 notifications sent
-- <5% unsubscribe rate
+- 1,000 web users (monthly)
+- 500 iOS app downloads
+- 2,000 watchlist items
+- 500 push notifications sent
+- Press coverage
 
 ### Growth (12 months)
-- 10,000 registered users
+- 10,000 web users (monthly)
+- 5,000 iOS app users
 - 50 paying pharmacy accounts
 - 1 provincial pilot
-- Press coverage
 
 ---
 
@@ -324,24 +283,13 @@ user, report (relation), din, type, channel, sent_at
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Therapeutic alternatives | ATC-4 level only | Safe boundary, always show "consult doctor" warning |
-| Barcode scanning | Yes, in MVP | Key UX differentiator for patients at pharmacy |
-| Language | 5 languages: EN, FR, Simplified Chinese, Traditional Chinese, Spanish | Canadian market + immigrant communities (UI only, not drug names) |
+| Language | 5 languages: EN, FR, ZH-Hans, ZH-Hant, ES | Canadian market + immigrant communities |
 | Target audience priority | Patients first, pharmacists second | Build free user base, monetize B2B later |
 | Hosting | Self-hosted VPS | Full control, cost-effective, no vendor lock-in |
-| Database | PocketBase | Single binary, built-in auth, admin UI, SQLite |
-
-## Pre-Launch Checklist
-
-| Item | Status | Action |
-|------|--------|--------|
-| Name/Branding | ✅ | **RxWatch.ca** |
-| Domain | ✅ | rxwatch.ca registered, pointed to VPS |
-| Privacy Policy | ⬜ | PIPEDA-compliant policy (Canada) |
-| Medical Disclaimers | ⬜ | "Not medical advice" language reviewed |
-
-## Open Questions
-
-1. **SMS costs:** At scale, SMS notifications get expensive. Worth it for Phase 2?
+| Database | PostgreSQL + Drizzle | Type-safe, reliable, industry standard |
+| Web auth | None (v1) | Keep it simple, no accounts needed for lookup |
+| Notifications | iOS app only | Push notifications are free, Apple handles auth |
+| Barcode | iOS app only | Native camera API works better |
 
 ---
 
@@ -352,47 +300,66 @@ user, report (relation), din, type, channel, sent_at
 │                      VPS (Single Server)                │
 │                                                         │
 │  ┌─────────────┐    ┌─────────────┐    ┌────────────┐  │
-│  │   Caddy     │    │  Next.js    │    │ PocketBase │  │
-│  │   :80/:443  │───▶│   :3000     │───▶│   :8090    │  │
-│  │  (reverse   │    │  (frontend  │    │  (database │  │
-│  │   proxy)    │    │  + API)     │    │  + auth)   │  │
-│  └─────────────┘    └─────────────┘    └────────────┘  │
-│                                               │         │
-│  ┌─────────────────────────────────┐          │         │
-│  │  Cron Worker (systemd timer)    │──────────┘         │
+│  │   Caddy     │    │  Next.js    │    │ PostgreSQL │  │
+│  │   :80/:443  │───▶│   :5000     │───▶│   :5433    │  │
+│  │  (reverse   │    │  (frontend  │    │  (Docker)  │  │
+│  │   proxy)    │    │  + API)     │    │            │  │
+│  └─────────────┘    └──────┬──────┘    └────────────┘  │
+│                            │                            │
+│                     ┌──────┴──────┐                     │
+│                     │ Drizzle ORM │                     │
+│                     └─────────────┘                     │
+│                                                         │
+│  ┌─────────────────────────────────┐                    │
+│  │  Cron Worker (systemd timer)    │                    │
 │  │  - Poll Drug Shortages API      │                    │
 │  │  - Update reports + drugs       │                    │
-│  │  - Trigger notifications        │                    │
 │  └─────────────────────────────────┘                    │
 └─────────────────────────────────────────────────────────┘
                            │
               ┌────────────┴────────────┐
               ▼                         ▼
-   ┌─────────────────┐      ┌─────────────────────┐
-   │ Drug Shortages  │      │ Health Canada DPD   │
-   │ Canada API      │      │ API                 │
-   └─────────────────┘      └─────────────────────┘
+   ┌──────────────┐          ┌─────────────────┐
+   │ Drug         │          │ Health Canada   │
+   │ Shortages    │          │ DPD API         │
+   │ Canada API   │          │                 │
+   └──────────────┘          └─────────────────┘
 ```
 
-**Process Management:** PM2 or systemd keeps Next.js + PocketBase running
+**Process Management:** PM2 or systemd keeps Next.js running
 
 **Domain Setup:**
 - `rxwatch.ca` → Next.js (public)
-- PocketBase on `localhost:8090` only (internal, not exposed)
+- PostgreSQL on `localhost:5433` only (internal, not exposed)
+
+---
+
+## Pre-Launch Checklist
+
+| Item | Status | Action |
+|------|--------|--------|
+| Name/Branding | Ready | **RxWatch.ca** |
+| Domain | Ready | rxwatch.ca registered, pointed to VPS |
+| Privacy Policy | ⬜ | PIPEDA-compliant policy (Canada) |
+| Medical Disclaimers | ⬜ | "Not medical advice" language reviewed |
+| Apple Developer Account | ⬜ | For iOS app + push notifications |
 
 ---
 
 ## Next Steps
 
-1. ~~Validate API access~~ ✓ (both APIs confirmed working)
-2. ~~Design notification system architecture~~ ✓
-3. ~~Choose tech stack~~ ✓
-4. Scaffold project (Next.js + PocketBase)
+1. ~~Validate API access~~ (both APIs confirmed working)
+2. ~~Design notification system architecture~~
+3. ~~Choose tech stack~~ (Next.js 15, Drizzle, PostgreSQL)
+4. Set up project scaffolding
+   - [ ] Docker + PostgreSQL
+   - [ ] Drizzle schema + migrations
+   - [ ] Next.js app structure
 5. Build shortage lookup + display
 6. Build alternative suggestions engine
-7. Add user accounts + watchlist (PocketBase auth)
-8. Implement cron worker for notifications
-9. Add barcode scanning (camera API)
-10. Add French translations (i18n)
-11. Deploy to VPS
-12. Launch beta
+7. Add recent updates feed
+8. Add translations (5 languages)
+9. Deploy to VPS
+10. Launch web beta
+11. Build iOS app (SwiftUI)
+12. Submit to App Store
