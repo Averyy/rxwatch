@@ -8,9 +8,10 @@ Watch your medications. Get alerted. Find alternatives.
 
 RxWatch helps Canadians navigate drug shortages by combining data from official government sources:
 
-- **Shortage Lookup** - Search by drug name, DIN, or barcode scan
+- **Shortage Lookup** - Search by drug name or DIN
 - **Alternative Suggestions** - Find same-ingredient alternatives from different manufacturers
-- **DIN-based Notifications** - Get alerted when YOUR specific medication's status changes
+- **Shortage Analytics** - Track trends, see which companies are late reporting
+- **Push Notifications** (iOS app) - Get alerted when YOUR specific medication's status changes
 
 ## Why RxWatch?
 
@@ -33,15 +34,32 @@ RxWatch uses **DIN** (Drug Identification Number) - the 8-digit code on your med
 
 | Source | Data |
 |--------|------|
-| [Drug Shortages Canada](https://www.drugshortagescanada.ca/) | Shortage reports, status, expected resolution dates |
+| [Drug Shortages Canada API](https://www.drugshortagescanada.ca/) | Shortage reports, status, expected resolution dates |
 | [Health Canada Drug Product Database](https://www.canada.ca/en/health-canada/services/drugs-health-products/drug-products/drug-product-database.html) | Drug details, ingredients, manufacturers, ATC codes |
 
 ## Tech Stack
 
-- Next.js 14 (App Router)
-- PocketBase (database + auth)
-- Resend (email notifications)
-- next-intl (EN/FR/ZH-Hans/ZH-Hant/ES)
+- **Next.js 15** (App Router) + React 19
+- **Tailwind CSS** + **shadcn/ui** + **Framer Motion**
+- **AG Grid Community** - data tables
+- **Recharts** - charts (via shadcn/ui)
+- **PostgreSQL** + Drizzle ORM
+- **next-intl** - EN/FR
+
+See [CLAUDE.md](CLAUDE.md) for full technical documentation.
+
+## Development
+
+```bash
+# Start PostgreSQL
+yarn db:start
+
+# Push schema
+yarn db:push
+
+# Run dev server
+yarn dev
+```
 
 ## Status
 

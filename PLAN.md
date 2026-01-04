@@ -53,9 +53,11 @@ Plus: **Get push notifications via iOS app when anything changes for medications
 #### Pages Structure
 
 ```
-/                           Homepage
-├── Global search bar (searches drugs + reports)
-├── Quick stats (active shortages, anticipated, to-be-discontinued)
+/                           Homepage (search-first design)
+├── Hero: Large search bar front and center
+│   └── "Check if your medication is in shortage"
+├── Quick stats below search (active shortages, anticipated, to-be-discontinued)
+├── Data freshness indicator ("Last synced: 5 min ago")
 └── Recent reports (last 20 updates)
 
 /drugs                      AG Grid - all drugs with shortage history
@@ -79,6 +81,15 @@ Plus: **Get push notifications via iOS app when anything changes for medications
 ├── Full report info
 ├── Link to drug → /drugs/[din]
 └── Raw API data (collapsible)
+
+/stats                      Insights & Analytics
+├── Shortage trends over time (line chart)
+├── Active shortages by drug category (ATC level 2/3)
+├── Tier 3 critical shortages (current + historical)
+├── Late reporting rate by company (accountability)
+│   └── Top 10 companies by % of reports submitted late
+├── Average shortage duration by category
+└── Data freshness indicator
 
 /about                      Static page
 ```
@@ -179,10 +190,13 @@ See `CLAUDE.md` for full Drizzle schema.
 | Component | Technology | Purpose |
 |-----------|------------|---------|
 | Frontend | Next.js 15 + React 19 | App Router, SSR |
-| Data Grid | AG Grid Community | Interactive tables with custom styling |
+| Styling | Tailwind CSS + shadcn/ui | Utility-first, component library |
+| Animations | Framer Motion | Subtle, professional motion |
+| Data Grid | AG Grid Community | Interactive tables (/drugs, /reports) |
+| Charts | Recharts (via shadcn/ui) | Stats visualizations (/stats) |
 | Database | PostgreSQL (Docker) | Reliable, scalable |
 | ORM | Drizzle | Type-safe, fast |
-| i18n | next-intl | 5 languages |
+| i18n | next-intl | EN/FR (MVP) |
 | Hosting | VPS + Caddy | Self-hosted |
 
 ### iOS App
@@ -205,10 +219,11 @@ See `CLAUDE.md` for full Drizzle schema.
 
 ### Week 3-4: Polish + Launch (Web)
 - [ ] Mobile-responsive design
-- [ ] All 5 languages (EN/FR/ZH-Hans/ZH-Hant/ES) - UI only
+- [ ] EN/FR translations (UI only)
 - [ ] Landing page + SEO
 - [ ] Patient-friendly language throughout
 - [ ] "Verify with your pharmacist" disclaimers
+- [ ] /stats page with insights
 
 ### Week 5-6: iOS App
 - [ ] SwiftUI app structure
@@ -283,7 +298,7 @@ See `CLAUDE.md` for full Drizzle schema.
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Therapeutic alternatives | ATC-4 level only | Safe boundary, always show "consult doctor" warning |
-| Language | 5 languages: EN, FR, ZH-Hans, ZH-Hant, ES | Canadian market + immigrant communities |
+| Language | EN/FR only (MVP) | Ship fast, add others if demand appears |
 | Target audience priority | Patients first, pharmacists second | Build free user base, monetize B2B later |
 | Hosting | Self-hosted VPS | Full control, cost-effective, no vendor lock-in |
 | Database | PostgreSQL + Drizzle | Type-safe, reliable, industry standard |
@@ -351,15 +366,18 @@ See `CLAUDE.md` for full Drizzle schema.
 1. ~~Validate API access~~ (both APIs confirmed working)
 2. ~~Design notification system architecture~~
 3. ~~Choose tech stack~~ (Next.js 15, Drizzle, PostgreSQL)
-4. Set up project scaffolding
-   - [ ] Docker + PostgreSQL
-   - [ ] Drizzle schema + migrations
+4. ~~Set up project scaffolding~~
+   - [x] Docker + PostgreSQL
+   - [x] Drizzle schema
    - [ ] Next.js app structure
-5. Build shortage lookup + display
-6. Build alternative suggestions engine
-7. Add recent updates feed
-8. Add translations (5 languages)
-9. Deploy to VPS
-10. Launch web beta
-11. Build iOS app (SwiftUI)
-12. Submit to App Store
+5. Fetch historical data (scripts/fetch-history.ts)
+6. Backfill database (scripts/backfill.ts)
+7. Build shortage lookup + display
+8. Build alternative suggestions engine
+9. Add recent updates feed
+10. Add /stats page with insights
+11. Add translations (EN/FR)
+12. Deploy to VPS
+13. Launch web beta
+14. Build iOS app (SwiftUI)
+15. Submit to App Store

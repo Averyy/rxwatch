@@ -13,6 +13,14 @@ Canadian drug shortage lookup + notification tool. Combines data from Drug Short
 
 **fetchaller replaces `WebFetch`, not dedicated MCPs.** If a dedicated MCP exists for a service (GitHub, Slack, etc.), use that MCP instead. Use fetchaller for general web fetching.
 
+**shadcn MCP** - Use the shadcn MCP server for all shadcn/ui component operations:
+- Browse available components: "Show me all shadcn components"
+- Search components: "Find a login form component"
+- Install components: "Add the button, card, and sidebar components"
+- The MCP connects to the shadcn registry and handles installation automatically
+- Config: `.mcp.json` in project root
+- **Before web searching for shadcn info**, review: https://ui.shadcn.com/llms.txt
+
 ---
 
 ## Architecture
@@ -45,10 +53,14 @@ Canadian drug shortage lookup + notification tool. Combines data from Drug Short
 ### Web (v1)
 - **Next.js 15** (App Router) - frontend + API routes
 - **React 19** - UI
-- **AG Grid Community Edition** - interactive data tables with custom styling
+- **Tailwind CSS** - styling
+- **shadcn/ui** - UI components (Tailwind-based, copy-paste)
+- **Framer Motion** - subtle animations
+- **AG Grid Community** - data tables (/drugs, /reports)
+- **Recharts** - charts (/stats page, via shadcn/ui charts)
 - **Drizzle ORM** - type-safe database access
 - **PostgreSQL** - database (Docker container)
-- **next-intl** - i18n (EN/FR/ZH-Hans/ZH-Hant/ES)
+- **next-intl** - i18n (EN/FR only for MVP)
 
 ### iOS App
 - **SwiftUI** - native iOS app
@@ -125,16 +137,19 @@ Discontinuation statuses:
 | discontinued | Discontinued | Permanently removed |
 | reversed | Reversed | Was going to discontinue, isn't |
 
-**Baseline data (as of Jan 2026, from DSC website):**
+**Baseline data (as of Jan 2026):**
 
 | Data | Count | Notes |
 |------|-------|-------|
-| All drugs in Canada | 57,627 | Full Health Canada DPD catalog |
-| **Drugs in our database** | **~10,000** | Drugs with any shortage/discontinuation history |
+| **All drugs in our database** | **57,627** | Full Health Canada DPD catalog (for search + alternatives) |
+| Drugs with shortage history | ~10,000 | Have at least one report |
 | Drugs with active reports | ~1,884 | Currently in shortage or to-be-discontinued |
 | Total reports | 27,819 | Full history (active + resolved) |
 
-**Important:** Our database only contains drugs that have (or had) shortage/discontinuation reports. Users can search for drugs with current OR historical shortages. If a search returns no results, it means that drug has never had a shortage (good news!). For general drug info, visit Health Canada's Drug Product Database.
+**Why index all 57k drugs?**
+- Better alternatives coverage - a drug in shortage might have alternatives that never had shortages
+- Complete search - users can search ANY Canadian drug
+- 57k is tiny for PostgreSQL - no performance impact
 
 | Report Type | Total | Breakdown |
 |-------------|-------|-----------|
@@ -149,28 +164,34 @@ Discontinuation statuses:
 **Active reports requiring monitoring:** ~1,884 (1,703 actual + 28 anticipated + 153 to-be-discontinued)
 **Historical/resolved reports:** ~25,935
 
-**Top companies by report volume:** Apotex (3,915), Teva (3,634), Sandoz (2,406), Pharmascience (1,660)
+**Company accountability:** Raw report counts are misleading (large generics manufacturers have more reports simply because they make more drugs). For meaningful analytics, calculate **late reporting rate by company** - percentage of reports submitted late. This shows compliance behavior, not just company size.
 
-### Health Canada Drug Product Database (DPD) API
+### Health Canada Drug Product Database (DPD)
 - Base URL: `https://health-products.canada.ca/api/drug/`
 - Auth: None required
 - Docs: https://health-products.canada.ca/api/documentation/dpd-documentation-en.html
 - **Note:** Uses `drug_code` (integer) as internal ID, not DIN
 
-**Lookup flow:**
-1. `/drugproduct/?din=02229519` → get `drug_code` (e.g., 47424)
-2. Use `drug_code` for related queries below
+**Bulk Extracts (preferred for full catalog):**
+- Download: https://www.canada.ca/en/health-canada/services/drugs-health-products/drug-products/drug-product-database/read-file-drug-product-database-data-extract.html
+- Format: CSV files in ZIP archives
+- Includes `LAST_UPDATE_DATE` for each drug (enables incremental sync)
 
-**Endpoints:**
+| Extract | Contents | Use for |
+|---------|----------|---------|
+| `allfiles.zip` | Marketed (active) drugs | Primary catalog |
+| `allfiles_ap.zip` | Approved (not yet marketed) | New drugs |
+| `allfiles_dr.zip` | Dormant (suspended 12+ months) | Historical |
+| `allfiles_ia.zip` | Cancelled | Historical |
+
+**API Endpoints (for individual lookups):**
 | Endpoint | Purpose | Key Fields |
 |----------|---------|------------|
-| `/drugproduct/?din=X` | Drug lookup | drug_code, brand_name, company_name |
-| `/drugproduct/?brandname=X` | Search by brand | (same) |
-| `/activeingredient/?id={drug_code}` | Ingredients | ingredient_name, strength, strength_unit |
+| `/drugproduct/?din=X` | Drug lookup | drug_code, brand_name, last_update_date |
+| `/activeingredient/?id={drug_code}` | Ingredients | ingredient_name, strength |
 | `/therapeuticclass/?id={drug_code}` | ATC codes | tc_atc_number, tc_atc |
 | `/form/?id={drug_code}` | Dosage form | pharmaceutical_form_name |
 | `/route/?id={drug_code}` | Route | route_of_administration_name |
-| `/status/?id={drug_code}` | Market status | status, original_market_date |
 
 **Language:** Add `&lang=fr` for French (translates form, route, class - not brand names)
 
@@ -185,6 +206,79 @@ Discontinuation statuses:
 
 ---
 
+## Search Strategy
+
+**Current approach:** PostgreSQL pg_trgm + GIN indexes (upgradable to Meilisearch later)
+
+```sql
+-- Enable trigram extension
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- GIN indexes for fast fuzzy search (defined in schema.ts)
+CREATE INDEX drugs_brand_name_trgm ON drugs USING GIN (brand_name gin_trgm_ops);
+CREATE INDEX drugs_common_name_trgm ON drugs USING GIN (common_name gin_trgm_ops);
+CREATE INDEX drugs_active_ingredient_trgm ON drugs USING GIN (active_ingredient gin_trgm_ops);
+```
+
+**Search query (handles typos like "metforman" → "metformin"):**
+```sql
+SELECT * FROM drugs
+WHERE brand_name % $1           -- trigram similarity
+   OR common_name % $1
+   OR active_ingredient % $1
+   OR din = $1                  -- exact DIN match
+ORDER BY
+  CASE WHEN din = $1 THEN 0 ELSE 1 END,  -- exact DIN first
+  similarity(brand_name, $1) DESC
+LIMIT 20;
+```
+
+**Performance:** 10-50ms for 57k drugs (acceptable with 300ms debounce)
+
+**Upgrade path to Meilisearch (if needed):**
+1. Add Meilisearch container to docker-compose
+2. Sync drugs/reports to Meilisearch on cron
+3. Swap query in `/api/search/route.ts`
+4. Zero schema changes - drop-in replacement
+
+---
+
+## Data Sync Strategy
+
+### Two data sources, two sync methods:
+
+| Source | Method | Frequency | Records |
+|--------|--------|-----------|---------|
+| **DSC (reports)** | API poll | Every 15 min | ~1,900 active |
+| **DPD (drugs)** | Bulk extract diff | Weekly | 57k total |
+
+### DSC Sync (scripts/poll-shortages.ts)
+
+Polls Drug Shortages Canada API every 15 minutes:
+1. Authenticate with DSC API (rotate accounts on rate limit)
+2. Fetch active/anticipated reports
+3. Compare with database, insert/update changed records
+4. Update `drugs.currentStatus` based on active reports
+5. Gap detection: if last sync > 1 day, fetch all reports since then
+
+### DPD Sync (scripts/sync-dpd.ts)
+
+Weekly sync from Health Canada bulk extracts:
+1. Download `allfiles.zip` (marketed drugs ~40MB)
+2. Parse CSV files (drug_product, active_ingredients, therapeutic_class, etc.)
+3. For each drug:
+   - If not in DB → INSERT
+   - If `last_update_date` > stored `dpdLastUpdated` → UPDATE
+   - Track: X new, Y updated, Z unchanged
+4. Log results, alert on anomalies (>1000 changes unusual)
+
+**Why bulk extracts vs API?**
+- One download vs 57k API calls
+- Includes `LAST_UPDATE_DATE` for incremental sync
+- Health Canada recommends this approach for full catalog
+
+---
+
 ## Database Schema (Drizzle + PostgreSQL)
 
 See `db/schema.ts` for full schema with comments and API field mappings.
@@ -194,23 +288,24 @@ See `db/schema.ts` for full schema with comments and API field mappings.
 - `reportTypeEnum`: shortage, discontinuation
 - `reportStatusEnum`: active_confirmed, anticipated_shortage, avoided_shortage, resolved, to_be_discontinued, discontinued, reversed
 
-**drugs table** - The catalog (one row per DIN):
+**drugs table** - The catalog (one row per DIN, 57k total):
 | Field | Type | Source | Notes |
 |-------|------|--------|-------|
-| din | text (unique) | DSC | Primary lookup key |
-| drugCode | integer | DSC | drug.drug_code (for DPD queries) |
-| brandName/brandNameFr | text | DSC | drug.brand_name, drug.brand_name_fr |
-| commonName/commonNameFr | text | DSC | en_drug_common_name, fr_drug_common_name |
-| activeIngredient/Fr | text | DSC | drug.drug_ingredients[0].ingredient.en_name/fr_name |
-| strength, strengthUnit | text | DSC | From drug_ingredients array |
-| numberOfAis, aiGroupNo | int/text | DSC | Multi-ingredient info |
-| form/formFr, route/routeFr | text | DSC | From drug_forms/drug_routes arrays |
-| atcCode | text | DSC | drug.therapeutics[0].atc_classification.atc_number |
-| atcLevel3, atcLevel5 | text | DSC | en_level_3_classification, en_level_5_classification |
-| company | text | DSC | drug.company.name |
-| marketStatus | text | DSC | drug.current_status (MARKETED, APPROVED, etc.) |
-| currentStatus | enum | Computed | Based on active report |
-| activeReportId | uuid | FK | Current active report |
+| din | text (unique) | DPD/DSC | Primary lookup key |
+| drugCode | integer | DPD | drug_code (for related DPD queries) |
+| brandName/brandNameFr | text | DPD/DSC | Brand name (bilingual) |
+| commonName/commonNameFr | text | DSC | Generic/proper name (from reports) |
+| activeIngredient/Fr | text | DPD | Primary ingredient |
+| strength, strengthUnit | text | DPD | e.g., "500", "MG" |
+| numberOfAis, aiGroupNo | int/text | DPD | Multi-ingredient info (for alternatives) |
+| form/formFr, route/routeFr | text | DPD | Dosage form, route of administration |
+| atcCode | text | DPD | ATC classification number |
+| atcLevel3, atcLevel5 | text | DPD | ATC level descriptions |
+| company | text | DPD | Manufacturer/DIN owner |
+| marketStatus | text | DPD | MARKETED, APPROVED, DORMANT, CANCELLED |
+| currentStatus | enum | Computed | Most severe active report (in_shortage > anticipated > to_be_discontinued > available) |
+| hasReports | boolean | Computed | true if any shortage/discontinuation history |
+| dpdLastUpdated | timestamp | DPD | `last_update_date` from DPD (for incremental sync) |
 
 **reports table** - Events (many per DIN over time):
 | Field | Type | Source |
@@ -239,13 +334,31 @@ See `db/schema.ts` for full schema with comments and API field mappings.
 **Report Status values (verified):**
 See "Status values" table in Data Sources section above. We store exact API values - no mapping.
 
-**Key Indexes (add in migration):**
+**Key Indexes (defined in schema.ts):**
 ```sql
+-- Enable pg_trgm for fuzzy search
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- drugs table - B-tree indexes
 CREATE INDEX idx_drugs_din ON drugs(din);
 CREATE INDEX idx_drugs_active_ingredient ON drugs(active_ingredient);
 CREATE INDEX idx_drugs_atc_code ON drugs(atc_code);
+CREATE INDEX idx_drugs_ai_group_no ON drugs(ai_group_no);
+CREATE INDEX idx_drugs_common_name ON drugs(common_name);
+CREATE INDEX idx_drugs_company ON drugs(company);
+CREATE INDEX idx_drugs_has_reports ON drugs(has_reports);
+
+-- drugs table - GIN indexes for fuzzy search (pg_trgm)
+CREATE INDEX idx_drugs_brand_name_trgm ON drugs USING GIN (brand_name gin_trgm_ops);
+CREATE INDEX idx_drugs_common_name_trgm ON drugs USING GIN (common_name gin_trgm_ops);
+CREATE INDEX idx_drugs_active_ingredient_trgm ON drugs USING GIN (active_ingredient gin_trgm_ops);
+
+-- reports table
 CREATE INDEX idx_reports_din ON reports(din);
 CREATE INDEX idx_reports_updated_at ON reports(updated_at);
+CREATE INDEX idx_reports_status ON reports(status);
+CREATE INDEX idx_reports_type ON reports(type);
+CREATE INDEX idx_reports_company ON reports(company);
 ```
 
 ---
@@ -395,9 +508,11 @@ Every page showing drug info must include:
 ## Pages Structure
 
 ```
-/                           Homepage
-├── Global search bar (searches drugs + reports)
-├── Quick stats (active shortages, anticipated, to-be-discontinued)
+/                           Homepage (search-first design)
+├── Hero: Large search bar front and center
+│   └── "Check if your medication is in shortage"
+├── Quick stats below search (active shortages, anticipated, to-be-discontinued)
+├── Data freshness indicator ("Last synced: 5 min ago")
 └── Recent reports (last 20 updates)
 
 /drugs                      AG Grid - all drugs with shortage history
@@ -425,6 +540,15 @@ Every page showing drug info must include:
 ├── Link to drug → /drugs/[din]
 └── Raw API data (collapsible, for debugging)
 
+/stats                      Insights & Analytics
+├── Shortage trends over time (line chart)
+├── Active shortages by drug category (ATC level 2/3)
+├── Tier 3 critical shortages (current + historical)
+├── Late reporting rate by company (accountability)
+│   └── Top 10 companies by % of reports submitted late
+├── Average shortage duration by category
+└── Data freshness indicator
+
 /about                      Static page
 ├── What is RxWatch
 ├── Data sources + disclaimers
@@ -439,7 +563,11 @@ Single search bar in header that queries both:
 
 Results grouped by type with links to detail pages.
 
-**No results message:** "No shortage history found for this drug. This means it has no reported shortages or discontinuations — good news! For general drug information, visit [Health Canada Drug Product Database](https://www.canada.ca/en/health-canada/services/drugs-health-products/drug-products/drug-product-database.html)."
+**Search results - three states:**
+
+1. **Valid DIN, in our database:** Show drug details + all reports
+2. **Valid DIN format, not in our database:** "No shortage history found for DIN {din}. This means this drug has never had a reported shortage or discontinuation — good news! For general drug information, visit [Health Canada Drug Product Database](link)."
+3. **Invalid DIN format / text search with no matches:** "No results found for '{query}'. Try searching by DIN (8 digits), brand name, or ingredient."
 
 ---
 
@@ -457,6 +585,8 @@ app/api/
 │   └── [reportId]/route.ts  # GET - report details
 ├── alternatives/
 │   └── [din]/route.ts       # GET - find alternatives for a drug
+├── stats/
+│   └── route.ts             # GET - aggregate stats for /stats page
 ├── health/
 │   └── route.ts             # GET - health check
 └── cron/
@@ -507,7 +637,9 @@ yarn db:restore db/dumps/rxwatch-YYYYMMDD.sql
 ```
 1. Authenticate with DSC API
 2. Paginate through ALL reports (~27k)
-3. Save raw JSON responses to history/ folder
+3. Save raw JSON responses to history/ folder as monthly chunks
+   - history/2024-01.json, history/2024-02.json, etc.
+   - Keeps individual files under GitHub's 100MB limit
 4. Commit to git - never need to refetch!
 ```
 
@@ -575,7 +707,7 @@ yarn db:restore db/dumps/rxwatch-YYYYMMDD.sql
 
 ## Key Decisions
 
-- **5 languages in MVP:** EN, FR, Simplified Chinese, Traditional Chinese, Spanish
+- **2 languages in MVP:** EN/FR only (add others if demand appears)
 - Therapeutic alternatives limited to same ATC-4 level with "consult doctor" warning
 - Patients first, pharmacists second
 - Local DB cache of shortage data, poll API for updates only
@@ -658,7 +790,7 @@ pm2 start ecosystem.config.js  # Start Next.js
 ```
 rxwatch/
 ├── app/
-│   ├── [locale]/                  # i18n routes (en/fr/zh-Hans/zh-Hant/es)
+│   ├── [locale]/                  # i18n routes (en/fr)
 │   │   ├── page.tsx               # Homepage (stats + recent reports)
 │   │   ├── drugs/
 │   │   │   ├── page.tsx           # AG Grid - drugs with active reports
@@ -666,10 +798,12 @@ rxwatch/
 │   │   ├── reports/
 │   │   │   ├── page.tsx           # AG Grid - all reports
 │   │   │   └── [reportId]/page.tsx # Report detail
+│   │   ├── stats/page.tsx         # Insights & analytics
 │   │   ├── about/page.tsx         # About page
 │   │   └── layout.tsx             # Global layout with search
 │   └── api/                       # API routes
 ├── components/
+│   ├── ui/                        # shadcn/ui components (auto-generated)
 │   ├── GlobalSearch.tsx
 │   ├── DrugGrid.tsx               # AG Grid for /drugs
 │   ├── ReportGrid.tsx             # AG Grid for /reports
@@ -677,7 +811,9 @@ rxwatch/
 │   ├── ReportDetail.tsx
 │   ├── ReportTimeline.tsx
 │   ├── AlternativesList.tsx
-│   └── RecentReports.tsx
+│   ├── RecentReports.tsx
+│   ├── StatsCharts.tsx            # Recharts for /stats page
+│   └── DataFreshness.tsx          # "Last synced: X min ago"
 ├── db/
 │   ├── schema.ts                  # Drizzle schema
 │   ├── index.ts                   # Drizzle client
@@ -687,17 +823,18 @@ rxwatch/
 │   ├── dpd-api.ts                 # Health Canada DPD client
 │   └── alternatives.ts            # Alternative-finding logic
 ├── scripts/
-│   ├── fetch-history.ts           # Fetch all reports → history/ folder
+│   ├── fetch-history.ts           # Fetch all DSC reports → history/ folder
 │   ├── backfill.ts                # Import history/ → database
-│   ├── poll-shortages.ts          # Cron worker (every 15 min)
+│   ├── poll-shortages.ts          # DSC cron worker (every 15 min)
+│   ├── sync-dpd.ts                # DPD bulk extract sync (weekly)
 │   └── analyze-apis.ts            # API field analysis (dev tool)
-├── history/                       # Raw API responses (checked in)
+├── history/                       # Raw API responses (checked in, monthly chunks)
+│   ├── 2024-01.json               # Reports from January 2024
+│   ├── 2024-02.json               # etc.
+│   └── ...
 ├── messages/
 │   ├── en.json
-│   ├── fr.json
-│   ├── zh-Hans.json
-│   ├── zh-Hant.json
-│   └── es.json
+│   └── fr.json
 ├── docker-compose.yml
 ├── drizzle.config.ts
 ├── CLAUDE.md

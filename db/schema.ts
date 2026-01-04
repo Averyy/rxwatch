@@ -59,32 +59,34 @@ export const reportStatusEnum = pgEnum('report_status', [
 // ===========================================
 
 /**
- * drugs - The Catalog (one row per medication)
+ * drugs - The Catalog (one row per medication, ~57k total)
  * Primary lookup by DIN (Drug Identification Number)
  *
- * Data sourced from:
- * - Drug Shortages Canada API (nested drug object in shortage/discontinuance responses)
- *   → Most fields come from DSC, including bilingual content
- * - Health Canada DPD API (for alternatives search and drugs never in shortage)
- *   → Used to find alternatives by ingredient/ATC, check market status
+ * Contains ALL Canadian drugs from Health Canada DPD (not just those with shortage history).
+ * This enables complete search and alternatives coverage.
  *
- * API field mapping:
- * - din ← DSC: drug.din / DPD: drug_identification_number
- * - drugCode ← DSC: drug.drug_code / DPD: drug_code
- * - brandName ← DSC: drug.brand_name / DPD: brand_name
- * - brandNameFr ← DSC: drug.brand_name_fr (DPD has no French)
- * - commonName/commonNameFr ← DSC: en_drug_common_name, fr_drug_common_name
- * - activeIngredient/Fr ← DSC: drug.drug_ingredients[0].ingredient.en_name/fr_name
- * - strength/Unit ← DSC: drug.drug_ingredients[0].strength/strength_unit
- * - form/Fr ← DSC: drug.drug_forms[0].form.en_pharm_form/fr_pharm_form
- * - route/Fr ← DSC: drug.drug_routes[0].route.en_name/fr_name
- * - atcCode ← DSC: drug.therapeutics[0].atc_classification.atc_number
- * - atcLevel3 ← DSC: drug.therapeutics[0].atc_classification.en_level_3_classification
- * - atcLevel5 ← DSC: drug.therapeutics[0].atc_classification.en_level_5_classification
- * - company ← DSC: drug.company.name / DPD: company_name
- * - marketStatus ← DSC: drug.current_status ("MARKETED", "APPROVED", etc.)
- * - numberOfAis ← DSC: drug.number_of_ais
- * - aiGroupNo ← DSC: drug.ai_group_no
+ * Data sources:
+ * - Health Canada DPD bulk extracts (weekly sync) → base drug catalog
+ * - Drug Shortages Canada API (15 min poll) → shortage status, report details
+ *
+ * Sync strategy:
+ * - DPD: Weekly bulk extract diff using `dpdLastUpdated` field
+ * - DSC: 15 min API poll for active reports, updates `currentStatus` and `hasReports`
+ *
+ * Field mapping (DPD bulk extract):
+ * - din ← DRUG_IDENTIFICATION_NUMBER
+ * - drugCode ← DRUG_CODE
+ * - brandName/Fr ← BRAND_NAME / BRAND_NAME_F
+ * - activeIngredient ← INGREDIENT (from ingred.txt)
+ * - strength/Unit ← STRENGTH / STRENGTH_UNIT
+ * - form/Fr ← PHARMACEUTICAL_FORM / PHARMACEUTICAL_FORM_F
+ * - route/Fr ← ROUTE_OF_ADMINISTRATION / ROUTE_OF_ADMINISTRATION_F
+ * - atcCode ← TC_ATC_NUMBER (from ther.txt)
+ * - company ← COMPANY_NAME
+ * - marketStatus ← STATUS (from status.txt)
+ * - numberOfAis ← NUMBER_OF_AIS
+ * - aiGroupNo ← AI_GROUP_NO
+ * - dpdLastUpdated ← LAST_UPDATE_DATE
  */
 export const drugs = pgTable('drugs', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -122,19 +124,33 @@ export const drugs = pgTable('drugs', {
   // Market status from DSC/DPD
   marketStatus: text('market_status'),            // MARKETED, APPROVED, CANCELLED, DORMANT
 
-  // Computed status based on active report
+  // Computed status based on most severe active report
+  // Priority: in_shortage > anticipated > to_be_discontinued > available
+  // Query reports by DIN to get full history
   currentStatus: drugStatusEnum('current_status').default('available'),
-  activeReportId: uuid('active_report_id'),       // Reference to current active report
+
+  // Whether this drug has any shortage/discontinuation reports (current or historical)
+  hasReports: boolean('has_reports').default(false),
+
+  // DPD sync tracking - last_update_date from Health Canada bulk extract
+  dpdLastUpdated: timestamp('dpd_last_updated'),
 
   // Timestamps
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (table) => [
+  // B-tree indexes for exact lookups
   index('drugs_din_idx').on(table.din),
   index('drugs_active_ingredient_idx').on(table.activeIngredient),
   index('drugs_atc_code_idx').on(table.atcCode),
+  index('drugs_ai_group_no_idx').on(table.aiGroupNo),
   index('drugs_common_name_idx').on(table.commonName),
   index('drugs_company_idx').on(table.company),
+  index('drugs_has_reports_idx').on(table.hasReports),
+  // Note: GIN indexes for pg_trgm fuzzy search are created via raw SQL migration
+  // CREATE INDEX drugs_brand_name_trgm ON drugs USING GIN (brand_name gin_trgm_ops);
+  // CREATE INDEX drugs_common_name_trgm ON drugs USING GIN (common_name gin_trgm_ops);
+  // CREATE INDEX drugs_active_ingredient_trgm ON drugs USING GIN (active_ingredient gin_trgm_ops);
 ]);
 
 /**
