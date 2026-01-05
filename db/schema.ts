@@ -178,8 +178,11 @@ export const drugs = pgTable('drugs', {
  * - anticipatedStartDate ← anticipated_start_date (shortage)
  * - actualStartDate ← actual_start_date (shortage)
  * - estimatedEndDate ← estimated_end_date (shortage)
+ * - actualEndDate ← actual_end_date (shortage) - when shortage actually resolved
  * - anticipatedDiscontinuationDate ← anticipated_discontinuation_date (discontinuation)
  * - discontinuationDate ← discontinuation_date (discontinuation)
+ * - apiCreatedDate ← created_date (when DSC received the report)
+ * - apiUpdatedDate ← updated_date (when DSC last updated - for sync)
  * - company ← company_name
  * - tier3 ← tier_3 (boolean)
  * - lateSubmission ← late_submission (boolean)
@@ -188,7 +191,7 @@ export const drugs = pgTable('drugs', {
 export const reports = pgTable('reports', {
   id: uuid('id').defaultRandom().primaryKey(),
   reportId: integer('report_id').notNull().unique(),  // From DSC API (numeric ID)
-  din: text('din').notNull(),
+  din: text('din'),  // 7 historical reports have no DIN
 
   // Drug info at time of report (denormalized, bilingual)
   brandName: text('brand_name'),                      // en_drug_brand_name
@@ -220,6 +223,7 @@ export const reports = pgTable('reports', {
   anticipatedStartDate: timestamp('anticipated_start_date'),
   actualStartDate: timestamp('actual_start_date'),
   estimatedEndDate: timestamp('estimated_end_date'),  // When shortage expected to resolve
+  actualEndDate: timestamp('actual_end_date'),        // When shortage actually resolved
 
   // Dates - Discontinuation reports
   anticipatedDiscontinuationDate: timestamp('anticipated_discontinuation_date'),
@@ -230,6 +234,10 @@ export const reports = pgTable('reports', {
   tier3: boolean('tier_3'),                           // Health Canada critical shortage flag
   lateSubmission: boolean('late_submission'),         // Whether report was submitted late
   decisionReversal: boolean('decision_reversal'),     // If discontinuation was reversed
+
+  // API timestamps (for sync tracking)
+  apiCreatedDate: timestamp('api_created_date'),      // DSC created_date (when report submitted)
+  apiUpdatedDate: timestamp('api_updated_date'),      // DSC updated_date (for incremental sync)
 
   // Full API response for debugging and future field extraction
   rawJson: jsonb('raw_json'),
@@ -243,6 +251,7 @@ export const reports = pgTable('reports', {
   index('reports_status_idx').on(table.status),
   index('reports_type_idx').on(table.type),
   index('reports_company_idx').on(table.company),
+  index('reports_api_updated_date_idx').on(table.apiUpdatedDate),  // For incremental sync
 ]);
 
 // ===========================================

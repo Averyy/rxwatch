@@ -14,11 +14,17 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:dump": "docker exec rxwatch-db pg_dump -U rxwatch rxwatch > db/dumps/rxwatch-$(date +%Y%m%d-%H%M%S).sql",
-    "db:restore": "docker exec -i rxwatch-db psql -U rxwatch rxwatch < ",
-    "db:reset": "docker compose down && docker volume rm rxwatch_postgres_data 2>/dev/null || true && docker volume create rxwatch_postgres_data && docker compose up -d"
+    "db:restore": "sh -c 'docker exec -i rxwatch-db psql -U rxwatch rxwatch < \"$1\"' --",
+    "db:reset": "docker compose down && docker volume rm rxwatch_postgres_data 2>/dev/null || true && docker volume create rxwatch_postgres_data && docker compose up -d",
+    "fetch-history": "npx tsx scripts/fetch-history.ts",
+    "backfill": "DATABASE_URL=postgres://rxwatch:rxwatch_dev_password@localhost:5433/rxwatch npx tsx scripts/backfill.ts",
+    "sync-dpd": "DATABASE_URL=postgres://rxwatch:rxwatch_dev_password@localhost:5433/rxwatch npx tsx scripts/sync-dpd.ts",
+    "sync-dpd:backfill": "DATABASE_URL=postgres://rxwatch:rxwatch_dev_password@localhost:5433/rxwatch npx tsx scripts/sync-dpd.ts --backfill",
+    "sync-dpd:from-cache": "DATABASE_URL=postgres://rxwatch:rxwatch_dev_password@localhost:5433/rxwatch npx tsx scripts/sync-dpd.ts --from-cache"
   },
   "devDependencies": {
     "@types/node": "^25.0.3",
+    "@types/pg": "^8.16.0",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "dotenv": "^17.2.3",
@@ -38,6 +44,7 @@
     "lucide-react": "^0.562.0",
     "next": "15",
     "next-themes": "^0.4.6",
+    "pg": "^8.16.3",
     "postcss": "^8.5.6",
     "postgres": "^3.4.7",
     "radix-ui": "^1.4.3",

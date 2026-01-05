@@ -9,12 +9,24 @@ config({ path: '.env.local' });
 const DSC_API_URL = process.env.DSC_API_URL || 'https://www.drugshortagescanada.ca/api/v1';
 const DSC_ACCOUNTS = JSON.parse(process.env.DSC_ACCOUNTS || '[]');
 
+const TIMEOUT_MS = 60000; // 60 second timeout for slow API
+
+async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function login(): Promise<string> {
   const account = DSC_ACCOUNTS[0];
   if (!account) throw new Error('No DSC_ACCOUNTS configured');
 
   console.log(`\n🔐 Logging in as ${account.email}...`);
-  const response = await fetch(`${DSC_API_URL}/login`, {
+  const response = await fetchWithTimeout(`${DSC_API_URL}/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ email: account.email, password: account.password }),
@@ -30,7 +42,7 @@ async function login(): Promise<string> {
 async function apiGet(authToken: string, path: string, params: Record<string, string> = {}) {
   const url = new URL(`${DSC_API_URL}/${path}`);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  const response = await fetch(url.toString(), { headers: { 'auth-token': authToken } });
+  const response = await fetchWithTimeout(url.toString(), { headers: { 'auth-token': authToken } });
   if (!response.ok) throw new Error(`${path} failed: ${response.status}`);
   return response.json();
 }

@@ -1,5 +1,42 @@
 # RxWatch.ca - Drug Shortage Intelligence Tool
 
+## Build Progress
+
+**Last updated:** Jan 5, 2026
+
+### What's Done
+- [x] Database schema (Drizzle + PostgreSQL)
+- [x] DSC history fetch script (`scripts/fetch-history.ts`) - 27,823 reports
+- [x] DSC backfill script (`scripts/backfill.ts`) - imports history to DB
+- [x] DPD sync script (`scripts/sync-dpd.ts`) - 57,512 drugs with caching
+- [x] Basic Next.js layout with sidebar navigation
+- [x] Theme toggle (light/dark)
+- [x] SQL dump created for prod deployment (107MB)
+
+### What's Not Built Yet
+- [ ] `scripts/poll-shortages.ts` - DSC polling cron (every 15 min)
+- [ ] All API routes (`/api/search`, `/api/drugs`, `/api/reports`, etc.)
+- [ ] Homepage with search + recent reports + stats
+- [ ] `/drugs` page with AG Grid
+- [ ] `/drugs/[din]` detail page with alternatives
+- [ ] `/reports` page with AG Grid
+- [ ] `/reports/[id]` detail page
+- [ ] `/stats` analytics page with charts
+- [ ] `/about` static page
+- [ ] Global search component
+- [ ] i18n (EN/FR)
+- [ ] iOS app
+
+### Database Stats
+| Data | Count |
+|------|-------|
+| Drugs (from DPD) | 57,512 |
+| Reports (from DSC) | 27,823 |
+| Drugs with shortage history | 8,777 |
+| Drugs with ATC codes | 47,379 (82%) |
+
+---
+
 ## Project Overview
 
 Canadian drug shortage lookup + notification tool. Combines data from Drug Shortages Canada API and Health Canada Drug Product Database to provide:
@@ -141,10 +178,10 @@ Discontinuation statuses:
 
 | Data | Count | Notes |
 |------|-------|-------|
-| **All drugs in our database** | **57,627** | Full Health Canada DPD catalog (for search + alternatives) |
-| Drugs with shortage history | ~10,000 | Have at least one report |
+| **All drugs in our database** | **57,512** | Full Health Canada DPD catalog (for search + alternatives) |
+| Drugs with shortage history | 8,777 | Have at least one report |
 | Drugs with active reports | ~1,884 | Currently in shortage or to-be-discontinued |
-| Total reports | 27,819 | Full history (active + resolved) |
+| Total reports | 27,823 | Full history (active + resolved) |
 
 **Why index all 57k drugs?**
 - Better alternatives coverage - a drug in shortage might have alternatives that never had shortages
@@ -172,26 +209,22 @@ Discontinuation statuses:
 - Docs: https://health-products.canada.ca/api/documentation/dpd-documentation-en.html
 - **Note:** Uses `drug_code` (integer) as internal ID, not DIN
 
-**Bulk Extracts (preferred for full catalog):**
-- Download: https://www.canada.ca/en/health-canada/services/drugs-health-products/drug-products/drug-product-database/read-file-drug-product-database-data-extract.html
-- Format: CSV files in ZIP archives
-- Includes `LAST_UPDATE_DATE` for each drug (enables incremental sync)
-
-| Extract | Contents | Use for |
-|---------|----------|---------|
-| `allfiles.zip` | Marketed (active) drugs | Primary catalog |
-| `allfiles_ap.zip` | Approved (not yet marketed) | New drugs |
-| `allfiles_dr.zip` | Dormant (suspended 12+ months) | Historical |
-| `allfiles_ia.zip` | Cancelled | Historical |
-
-**API Endpoints (for individual lookups):**
+**API Endpoints (used for sync):**
 | Endpoint | Purpose | Key Fields |
 |----------|---------|------------|
-| `/drugproduct/?din=X` | Drug lookup | drug_code, brand_name, last_update_date |
-| `/activeingredient/?id={drug_code}` | Ingredients | ingredient_name, strength |
-| `/therapeuticclass/?id={drug_code}` | ATC codes | tc_atc_number, tc_atc |
+| `/drugproduct/` | List ALL drugs (57k) | drug_code, din, brand_name, last_update_date |
+| `/drugproduct/?din=X` | Single drug lookup | drug_code, brand_name, last_update_date |
+| `/activeingredient/?id={drug_code}` | Ingredients | ingredient_name, strength, strength_unit |
 | `/form/?id={drug_code}` | Dosage form | pharmaceutical_form_name |
 | `/route/?id={drug_code}` | Route | route_of_administration_name |
+| `/therapeuticclass/?id={drug_code}` | ATC codes | tc_atc_number, tc_atc |
+| `/status/?id={drug_code}` | Market status | status (MARKETED, APPROVED, etc.) |
+
+**Why we use API instead of bulk ZIP extracts:**
+- ZIP extracts (`allfiles.zip`) only contain ~13k marketed drugs
+- API `/drugproduct/` endpoint returns all 57,658 drugs (including non-marketed)
+- API provides consistent JSON format, no CSV parsing needed
+- Trade-off: 5 API calls per drug during backfill (~290k total calls, ~1-2 hours)
 
 **Language:** Add `&lang=fr` for French (translates form, route, class - not brand names)
 
@@ -263,19 +296,52 @@ Polls Drug Shortages Canada API every 15 minutes:
 
 ### DPD Sync (scripts/sync-dpd.ts)
 
-Weekly sync from Health Canada bulk extracts:
-1. Download `allfiles.zip` (marketed drugs ~40MB)
-2. Parse CSV files (drug_product, active_ingredients, therapeutic_class, etc.)
-3. For each drug:
-   - If not in DB → INSERT
-   - If `last_update_date` > stored `dpdLastUpdated` → UPDATE
-   - Track: X new, Y updated, Z unchanged
-4. Log results, alert on anomalies (>1000 changes unusual)
+**Two modes:**
 
-**Why bulk extracts vs API?**
-- One download vs 57k API calls
-- Includes `LAST_UPDATE_DATE` for incremental sync
-- Health Canada recommends this approach for full catalog
+**1. Backfill (`--backfill`)** - One-time full catalog sync:
+```bash
+yarn sync-dpd:backfill    # Fetches all 57k drugs with full details
+                          # Takes ~1-2 hours (API rate limited)
+```
+- Fetches drug list from `/drugproduct/` endpoint (57k drugs, ~15MB JSON)
+- For each drug, fetches 4 detail endpoints in parallel:
+  - `/activeingredient/?id={drug_code}` - ingredients, strength
+  - `/form/?id={drug_code}` - dosage form
+  - `/route/?id={drug_code}` - route of administration
+  - `/therapeuticclass/?id={drug_code}` - ATC codes
+  - `/status/?id={drug_code}` - market status
+- Runs 20 concurrent requests for speed
+- Uses COALESCE on upsert to preserve existing DSC data (common_name, etc.)
+- Saves sync state to `.dpd-sync-state.json`
+
+**2. From Cache (`--from-cache`)** - Reimport from local cache:
+```bash
+yarn sync-dpd:from-cache  # Import from dpd/ folder (no API calls)
+                          # Fast: ~30 seconds vs 1-2 hours
+```
+- Used to reimport after backfill without hitting API again
+- Useful for: fresh database restore, schema changes, debugging
+
+**3. Incremental (default)** - Weekly sync for new/changed drugs:
+```bash
+yarn sync-dpd             # Only updates changed drugs
+```
+- Fetches drug list, compares `last_update_date` with stored `dpdLastUpdated`
+- Only fetches details for new or changed drugs
+- Typically processes 0-100 drugs (vs 57k for backfill)
+
+**Local cache (dpd/ folder):**
+- `dpd/drug-list.json` - All drugs from API (~15MB)
+- `dpd/drugs/{din}.json` - Per-DIN details (~57k files)
+- Gitignored (too large for git), but persists locally
+- Backfill is resumable: reruns skip already-cached drugs
+- DB inserts happen incrementally (every 500 drugs)
+
+**Why API instead of bulk ZIP extracts?**
+- ZIP extracts only contain ~13k marketed drugs, API has all 57k
+- API provides complete detail in standard format
+- No CSV parsing complexity
+- Trade-off: More API calls, but one-time backfill then fast incremental
 
 ---
 
@@ -324,11 +390,14 @@ See `db/schema.ts` for full schema with comments and API field mappings.
 | atcCode, atcDescription | text | atc_number, atc_description |
 | anticipatedStartDate, actualStartDate | timestamp | Shortage dates |
 | estimatedEndDate | timestamp | When shortage expected to resolve |
+| actualEndDate | timestamp | When shortage actually resolved |
 | anticipatedDiscontinuationDate, discontinuationDate | timestamp | Discontinuation dates |
 | company | text | company_name |
 | tier3 | boolean | tier_3 flag |
 | lateSubmission | boolean | late_submission flag |
 | decisionReversal | boolean | decision_reversal flag |
+| apiCreatedDate | timestamp | DSC created_date (when report submitted) |
+| apiUpdatedDate | timestamp | DSC updated_date (for incremental sync) |
 | rawJson | jsonb | Full API response |
 
 **Report Status values (verified):**
@@ -359,6 +428,7 @@ CREATE INDEX idx_reports_updated_at ON reports(updated_at);
 CREATE INDEX idx_reports_status ON reports(status);
 CREATE INDEX idx_reports_type ON reports(type);
 CREATE INDEX idx_reports_company ON reports(company);
+CREATE INDEX idx_reports_api_updated_date ON reports(api_updated_date);
 ```
 
 ---
@@ -471,12 +541,31 @@ yarn db:restore db/dumps/rxwatch-20260103-141500.sql   # Load data
 # Only re-dump when you need fresh prod data
 ```
 
-**Workflow 3: Fresh backfill (rare)**
+**Workflow 3: Fresh backfill (rare - initial setup)**
 ```bash
 yarn db:reset             # Wipe everything
 yarn db:push              # Create schema
-yarn backfill             # Run initial data import (takes hours)
-yarn db:dump              # Save the result!
+yarn backfill             # Import DSC reports from history/ folder
+yarn sync-dpd:backfill    # Fetch full DPD drug catalog (57k drugs, ~1-2 hours)
+yarn db:dump              # Save the complete database!
+```
+
+**Workflow 4: Production initial setup**
+```bash
+# On dev machine (do the heavy lifting)
+yarn db:reset && yarn db:push
+yarn backfill                    # DSC reports
+yarn sync-dpd:backfill           # DPD drugs (1-2 hours)
+yarn db:dump                     # Creates db/dumps/rxwatch-YYYYMMDD-HHMMSS.sql
+
+# Copy to production
+scp db/dumps/rxwatch-*.sql prod-server:/path/to/rxwatch/db/dumps/
+
+# On production
+yarn db:start                    # Start PostgreSQL
+yarn db:push                     # Create schema
+yarn db:restore db/dumps/rxwatch-YYYYMMDD-HHMMSS.sql
+# Set up cron for DSC poll (every 15 min) and DPD sync (weekly)
 ```
 
 **Schema sync (always via Drizzle migrations):**
@@ -532,7 +621,7 @@ Every page showing drug info must include:
 ├── Columns: TBD
 ├── Filters: TBD
 ├── Click row → /reports/[reportId]
-└── 27,819 rows (virtualized)
+└── 27,823 rows (virtualized)
 
 /reports/[reportId]         Report detail page
 ├── Full report info (status, reason, dates, tier 3)
@@ -599,9 +688,9 @@ app/api/
 
 **Key insight:** The Drug Shortages Canada API returns COMPREHENSIVE nested drug data with each report (brand name, ingredients, forms, routes, ATC codes, company). We DON'T need to call Health Canada DPD API for drug info on items already in our database. DPD is only needed for finding ALTERNATIVES and checking market status for drugs never in shortage.
 
-### Workflow: History → Backfill → Production
+### Workflow: History → Backfill → DPD → Production
 
-**Step 1: Fetch historical data (one-time, checked into git)**
+**Step 1: Fetch historical DSC data (one-time, checked into git)**
 ```bash
 yarn fetch-history         # Fetch all ~27k reports from DSC API
                            # Saves raw JSON to history/ folder
@@ -613,10 +702,17 @@ yarn fetch-history         # Fetch all ~27k reports from DSC API
 yarn db:reset              # Fresh database
 yarn db:push               # Create schema
 yarn backfill              # Import from history/ folder (fast, local files)
-yarn db:dump               # Optional: save SQL dump
 ```
 
-**Step 3: Upload to production**
+**Step 3: Backfill full drug catalog from DPD**
+```bash
+yarn sync-dpd:backfill     # Fetch all 57k drugs from Health Canada API
+                           # Takes ~1-2 hours (API rate limited)
+                           # Fills in drugs without shortage history
+yarn db:dump               # Save SQL dump with full catalog
+```
+
+**Step 4: Upload to production**
 ```bash
 # Copy dump to production
 scp db/dumps/rxwatch-*.sql prod:/path/to/rxwatch/db/dumps/
@@ -626,10 +722,9 @@ yarn db:push               # Ensure schema exists
 yarn db:restore db/dumps/rxwatch-YYYYMMDD.sql
 ```
 
-**Step 4: Production only polls for new/updated reports**
-- Cron runs every 15 min
-- Only fetches active/anticipated reports (~1,900)
-- Historical data already loaded from backfill
+**Step 5: Production cron jobs**
+- DSC poll: Every 15 min (active/anticipated reports only)
+- DPD sync: Weekly (incremental, new/changed drugs only)
 
 ### Scripts
 
@@ -738,13 +833,17 @@ Drug names stay in English/French - matches how they're labeled on pharmacy bott
 
 ```bash
 # Database
-docker-compose up -d           # Start PostgreSQL
-yarn db:generate               # Generate Drizzle migrations
+yarn db:start                  # Start PostgreSQL container (creates volume if needed)
+yarn db:stop                   # Stop container
 yarn db:push                   # Push schema to database
+yarn db:generate               # Generate Drizzle migrations
 yarn db:studio                 # Open Drizzle Studio (admin UI)
+yarn db:dump                   # Create timestamped SQL dump
+yarn db:restore <file>         # Restore from SQL dump
+yarn db:reset                  # Nuclear: wipe volume, restart fresh
 
 # Local Development
-yarn dev                       # Next.js dev server
+yarn dev                       # Next.js dev server (port 5000)
 
 # Type check
 yarn type-check
@@ -752,9 +851,11 @@ yarn type-check
 # Build
 yarn build
 
-# Scripts
-yarn backfill                  # One-time data import
-yarn poll                      # Manual poll (for testing)
+# Data Sync Scripts
+yarn fetch-history             # Fetch all DSC reports → history/ folder (one-time)
+yarn backfill                  # Import history/ → database (DSC reports + drugs)
+yarn sync-dpd                  # Incremental DPD sync (weekly cron)
+yarn sync-dpd:backfill         # Full DPD catalog import (one-time, ~1-2 hours)
 
 # Production
 pm2 start ecosystem.config.js  # Start Next.js

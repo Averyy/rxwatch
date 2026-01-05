@@ -44,3 +44,11 @@ coverage/
 *.tsbuildinfo
 next-env.d.ts
 
+# Sync state files
+.dpd-sync-state.json
+.fetch-progress.json
+.dpd-temp/
+
+# DPD data (if saved locally instead of DB)
+dpd/
+

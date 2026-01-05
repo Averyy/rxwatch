@@ -65,6 +65,42 @@ yarn dev
 
 **Pre-MVP** - Active development
 
+### Progress Tracker
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| **Data Pipeline** | | |
+| Database schema | Done | Drizzle schema with drugs + reports tables |
+| DSC history fetch | Done | 27,823 reports fetched to history/ |
+| DSC backfill script | Done | Imports history to database |
+| DPD sync script | Done | 57,512 drugs synced with caching |
+| DSC poll script | Not started | Cron for ongoing updates |
+| **API Routes** | | |
+| /api/search | Not started | Global search endpoint |
+| /api/drugs | Not started | Drug list + detail |
+| /api/reports | Not started | Report list + detail |
+| /api/alternatives | Not started | Find alternatives by DIN |
+| /api/stats | Not started | Aggregate statistics |
+| /api/cron/poll | Not started | Secured cron endpoint |
+| **Pages** | | |
+| Homepage | Basic | Layout only, no data |
+| /drugs | Not started | AG Grid drug list |
+| /drugs/[din] | Not started | Drug detail page |
+| /reports | Not started | AG Grid report list |
+| /reports/[id] | Not started | Report detail page |
+| /stats | Not started | Analytics dashboard |
+| /about | Not started | Static content |
+| **Components** | | |
+| Layout/sidebar | Done | Basic navigation |
+| Search | Not started | Global search bar |
+| Data grids | Not started | AG Grid tables |
+| Charts | Not started | Recharts visualizations |
+
+**Database stats (as of Jan 5, 2026):**
+- 57,512 drugs from Health Canada DPD
+- 27,823 shortage/discontinuation reports from DSC
+- 8,777 drugs with shortage history
+
 ## Disclaimer
 
 This tool is for informational purposes only. It is not medical advice. Always consult your pharmacist or doctor before making any changes to your medications. Alternative suggestions require verification by a healthcare professional.
