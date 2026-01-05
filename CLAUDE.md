@@ -9,13 +9,14 @@
 - [x] DSC history fetch script (`scripts/fetch-history.ts`) - 27,823 reports
 - [x] DSC backfill script (`scripts/backfill.ts`) - imports history to DB
 - [x] DPD sync script (`scripts/sync-dpd.ts`) - 57,512 drugs with caching
+- [x] DSC sync script (`scripts/sync-dsc.ts`) - incremental sync every 15 min
 - [x] Basic Next.js layout with sidebar navigation
 - [x] Theme toggle (light/dark)
 - [x] SQL dump created for prod deployment (107MB)
+- [x] pg_trgm extension + GIN indexes for fuzzy search
+- [x] API routes (`/api/drugs`, `/api/reports`, `/api/search`, `/api/health`)
 
 ### What's Not Built Yet
-- [ ] `scripts/poll-shortages.ts` - DSC polling cron (every 15 min)
-- [ ] All API routes (`/api/search`, `/api/drugs`, `/api/reports`, etc.)
 - [ ] Homepage with search + recent reports + stats
 - [ ] `/drugs` page with AG Grid
 - [ ] `/drugs/[din]` detail page with alternatives
@@ -77,7 +78,7 @@ Canadian drug shortage lookup + notification tool. Combines data from Drug Short
 │                                                         │
 │  ┌─────────────────────────────────┐                    │
 │  │  Cron Worker (every 15 min)     │                    │
-│  │  scripts/poll-shortages.ts      │                    │
+│  │  scripts/sync-dsc.ts            │                    │
 │  │  Direct DB access via Drizzle   │                    │
 │  └─────────────────────────────────┘                    │
 └─────────────────────────────────────────────────────────┘
@@ -283,9 +284,9 @@ LIMIT 20;
 | Source | Method | Frequency | Records |
 |--------|--------|-----------|---------|
 | **DSC (reports)** | API poll | Every 15 min | ~1,900 active |
-| **DPD (drugs)** | Bulk extract diff | Weekly | 57k total |
+| **DPD (drugs)** | API with change detection | Daily 4am EST | 57k total |
 
-### DSC Sync (scripts/poll-shortages.ts)
+### DSC Sync (scripts/sync-dsc.ts)
 
 Polls Drug Shortages Canada API every 15 minutes:
 1. Authenticate with DSC API (rotate accounts on rate limit)
@@ -322,13 +323,16 @@ yarn sync-dpd:from-cache  # Import from dpd/ folder (no API calls)
 - Used to reimport after backfill without hitting API again
 - Useful for: fresh database restore, schema changes, debugging
 
-**3. Incremental (default)** - Weekly sync for new/changed drugs:
+**3. Incremental (default)** - Daily sync with smart change detection:
 ```bash
-yarn sync-dpd             # Only updates changed drugs
+yarn sync-dpd             # Daily sync (skips if no changes)
+yarn sync-dpd --force     # Force full sync (bypass change detection)
 ```
-- Fetches drug list, compares `last_update_date` with stored `dpdLastUpdated`
+- First: HEAD request checks Content-Length (~14MB file size)
+- If unchanged AND < 1 month since full sync: **skips instantly** (~1 sec)
+- If changed OR > 1 month: downloads list, compares `last_update_date`
 - Only fetches details for new or changed drugs
-- Typically processes 0-100 drugs (vs 57k for backfill)
+- Typically processes 0-100 drugs when changes found
 
 **Local cache (dpd/ folder):**
 - `dpd/drug-list.json` - All drugs from API (~15MB)
@@ -448,22 +452,18 @@ DPD_API_URL=https://health-products.canada.ca/api/drug
 
 # App
 NEXT_PUBLIC_APP_URL=https://rxwatch.ca
-
-# Cron security (for data sync)
-CRON_SECRET=generate-a-random-string-here
 ```
 
 ---
 
 ## Security & Operations
 
-### Protecting the Cron Endpoint
-```typescript
-// app/api/cron/poll/route.ts
-if (request.headers.get('Authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
-  return new Response('Unauthorized', { status: 401 });
-}
-```
+### Cron Scripts
+Data sync is handled by standalone TypeScript scripts, not API routes:
+- `scripts/sync-dsc.ts` - Runs every 15 min to sync DSC shortage reports
+- `scripts/sync-dpd.ts` - Runs daily at 4 AM EST to sync DPD drug catalog
+
+Scripts connect directly to the database via `DATABASE_URL` environment variable.
 
 ### PostgreSQL Docker Setup
 
@@ -565,7 +565,7 @@ scp db/dumps/rxwatch-*.sql prod-server:/path/to/rxwatch/db/dumps/
 yarn db:start                    # Start PostgreSQL
 yarn db:push                     # Create schema
 yarn db:restore db/dumps/rxwatch-YYYYMMDD-HHMMSS.sql
-# Set up cron for DSC poll (every 15 min) and DPD sync (weekly)
+# Set up cron for DSC poll (every 15 min) and DPD sync (daily 4am EST)
 ```
 
 **Schema sync (always via Drizzle migrations):**
@@ -664,23 +664,64 @@ Results grouped by type with links to detail pages.
 
 ```
 app/api/
-├── search/
-│   └── route.ts             # GET ?q=metformin - search drugs + reports
-├── drugs/
-│   └── route.ts             # GET - list drugs (for AG Grid)
-│   └── [din]/route.ts       # GET - drug details
-├── reports/
-│   └── route.ts             # GET - list reports (for AG Grid)
-│   └── [reportId]/route.ts  # GET - report details
-├── alternatives/
-│   └── [din]/route.ts       # GET - find alternatives for a drug
-├── stats/
-│   └── route.ts             # GET - aggregate stats for /stats page
-├── health/
-│   └── route.ts             # GET - health check
-└── cron/
-    └── poll/route.ts        # POST - poll for updates (secured)
+├── search/route.ts                  # GET ?q=metformin - fuzzy search
+├── drugs/route.ts                   # GET - list drugs (AG Grid)
+├── drugs/[din]/route.ts             # GET - drug details + reports
+├── drugs/[din]/alternatives/route.ts # GET - find alternatives
+├── reports/route.ts                 # GET - list reports (AG Grid)
+├── reports/[id]/route.ts            # GET - report details
+├── stats/route.ts                   # GET - aggregate stats
+└── health/route.ts                  # GET - health check
 ```
+
+**Query params for filtering (all optional, combine as needed):**
+
+`GET /api/drugs`
+| Param | Example | Description |
+|-------|---------|-------------|
+| `hasReports` | `true` | Only drugs with shortage history (~8,800) |
+| `status` | `in_shortage` | Filter by currentStatus |
+| `company` | `PFIZER` | Partial match, case-insensitive |
+| `atc` | `N02` | ATC code prefix |
+| `ingredient` | `metformin` | Partial match on active ingredient |
+| `marketed` | `true` | Only marketed drugs |
+
+`GET /api/reports`
+| Param | Example | Description |
+|-------|---------|-------------|
+| `active` | `true` | Only active reports (~1,900) |
+| `type` | `shortage` | shortage or discontinuation |
+| `status` | `active_confirmed` | Exact status match |
+| `company` | `PFIZER` | Partial match, case-insensitive |
+| `din` | `02345678` | Exact DIN match |
+| `tier3` | `true` | Only Tier 3 critical shortages |
+| `late` | `true` | Only late submissions |
+| `since` | `2024-01-01` | Updated since date (ISO) |
+
+`GET /api/search?q=metforman`
+- Fuzzy search using pg_trgm (handles typos)
+- Searches brand name, common name, active ingredient
+- Exact DIN match if 8 digits
+
+`GET /api/drugs/[din]`
+- Returns drug details + all reports for that DIN
+
+`GET /api/drugs/[din]/alternatives`
+| Param | Example | Description |
+|-------|---------|-------------|
+| `availableOnly` | `true` | Only alternatives not in shortage |
+
+Returns two categories:
+- `sameIngredient` - Generic equivalents (same active ingredient)
+- `sameTherapeuticClass` - Same ATC code, different ingredient
+
+`GET /api/reports/[id]`
+- Returns report details + linked drug info
+
+`GET /api/stats`
+- Aggregate stats: totals, by status, top companies, late rates
+
+Note: Data sync is handled by standalone scripts (`scripts/sync-dsc.ts`, `scripts/sync-dpd.ts`) run via cron, not API routes.
 
 ---
 
@@ -724,7 +765,7 @@ yarn db:restore db/dumps/rxwatch-YYYYMMDD.sql
 
 **Step 5: Production cron jobs**
 - DSC poll: Every 15 min (active/anticipated reports only)
-- DPD sync: Weekly (incremental, new/changed drugs only)
+- DPD sync: Daily 4am EST (smart change detection, skips if unchanged)
 
 ### Scripts
 
@@ -756,7 +797,7 @@ yarn db:restore db/dumps/rxwatch-YYYYMMDD.sql
 
 ## Cron Worker Logic
 
-`scripts/poll-shortages.ts` (runs every 15 min via systemd timer):
+`scripts/sync-dsc.ts` (runs every 15 min via systemd timer):
 
 ```
 1. Authenticate with Drug Shortages Canada API
@@ -854,8 +895,10 @@ yarn build
 # Data Sync Scripts
 yarn fetch-history             # Fetch all DSC reports → history/ folder (one-time)
 yarn backfill                  # Import history/ → database (DSC reports + drugs)
-yarn sync-dpd                  # Incremental DPD sync (weekly cron)
+yarn sync-dpd                  # Daily DPD sync with smart change detection
 yarn sync-dpd:backfill         # Full DPD catalog import (one-time, ~1-2 hours)
+yarn sync-dpd --force          # Force full DPD sync (bypass change detection)
+yarn sync-dsc                  # Sync DSC shortage reports (production: every 15 min)
 
 # Production
 pm2 start ecosystem.config.js  # Start Next.js
@@ -926,8 +969,8 @@ rxwatch/
 ├── scripts/
 │   ├── fetch-history.ts           # Fetch all DSC reports → history/ folder
 │   ├── backfill.ts                # Import history/ → database
-│   ├── poll-shortages.ts          # DSC cron worker (every 15 min)
-│   ├── sync-dpd.ts                # DPD bulk extract sync (weekly)
+│   ├── sync-dsc.ts                # DSC sync (every 15 min)
+│   ├── sync-dpd.ts                # DPD sync with change detection (daily)
 │   └── analyze-apis.ts            # API field analysis (dev tool)
 ├── history/                       # Raw API responses (checked in, monthly chunks)
 │   ├── 2024-01.json               # Reports from January 2024

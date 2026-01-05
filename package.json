@@ -20,7 +20,8 @@
     "backfill": "DATABASE_URL=postgres://rxwatch:rxwatch_dev_password@localhost:5433/rxwatch npx tsx scripts/backfill.ts",
     "sync-dpd": "DATABASE_URL=postgres://rxwatch:rxwatch_dev_password@localhost:5433/rxwatch npx tsx scripts/sync-dpd.ts",
     "sync-dpd:backfill": "DATABASE_URL=postgres://rxwatch:rxwatch_dev_password@localhost:5433/rxwatch npx tsx scripts/sync-dpd.ts --backfill",
-    "sync-dpd:from-cache": "DATABASE_URL=postgres://rxwatch:rxwatch_dev_password@localhost:5433/rxwatch npx tsx scripts/sync-dpd.ts --from-cache"
+    "sync-dpd:from-cache": "DATABASE_URL=postgres://rxwatch:rxwatch_dev_password@localhost:5433/rxwatch npx tsx scripts/sync-dpd.ts --from-cache",
+    "sync-dsc": "DATABASE_URL=postgres://rxwatch:rxwatch_dev_password@localhost:5433/rxwatch npx tsx scripts/sync-dsc.ts"
   },
   "devDependencies": {
     "@types/node": "^25.0.3",

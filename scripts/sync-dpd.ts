@@ -11,19 +11,24 @@
  *    - Use after backfill to re-import without hitting API
  *    - Fast: ~30 seconds vs 1-2 hours
  *
- * 3. Incremental (default): Weekly sync for new/changed drugs only
- *    - Compares API last_update_date with stored dpdLastUpdated
- *    - Typically processes 0-100 drugs
+ * 3. Incremental (default): Daily sync with smart change detection
+ *    - Quick HEAD request checks Content-Length (~14MB file)
+ *    - If unchanged AND < 1 month since full sync: skips (instant)
+ *    - If changed OR > 1 month: downloads + compares last_update_date
+ *    - Typically processes 0-100 drugs when changes found
  *
  * Usage:
  *   yarn sync-dpd:backfill          # Full API fetch + cache + DB insert
  *   yarn sync-dpd:from-cache        # Import from cache only (no API calls)
- *   yarn sync-dpd                   # Incremental sync (for weekly cron)
- *   yarn sync-dpd --force           # Force update all drugs
+ *   yarn sync-dpd                   # Daily sync with change detection
+ *   yarn sync-dpd --force           # Force full sync (bypass change detection)
+ *
+ * Production cron (daily at 4am EST):
+ *   0 9 * * * cd /path/to/rxwatch && yarn sync-dpd >> /var/log/rxwatch-dpd.log 2>&1
  *
  * Cache structure (batched - ~58 files total):
  *   dpd/
- *   ├── drug-list.json              # All drugs from /drugproduct/ (~18MB)
+ *   ├── drug-list.json              # All drugs from /drugproduct/ (~14MB)
  *   ├── drugs-00000.json            # Drugs 0-999 with details (~2MB each)
  *   ├── drugs-01000.json            # Drugs 1000-1999
  *   ├── drugs-02000.json            # etc.
@@ -53,6 +58,8 @@ const DB_BATCH_SIZE = 500; // Insert to DB every N drugs
 interface SyncState {
   lastSyncTimestamp: string;
   drugsCount: number;
+  lastContentLength?: number;  // For quick change detection via HEAD request
+  lastFullSyncTimestamp?: string;  // Force full sync if > 1 month old
 }
 
 interface APIDrug {
@@ -480,17 +487,70 @@ async function runBackfillFromCache(db: ReturnType<typeof drizzle>) {
 // ============================================
 
 async function runIncremental(db: ReturnType<typeof drizzle>, force: boolean) {
-  console.log('=== DPD Incremental Sync (API) ===\n');
+  console.log('=== DPD Incremental Sync ===\n');
 
   const prevState = loadSyncState();
   if (prevState) {
     console.log(`Previous sync: ${prevState.lastSyncTimestamp}`);
-    console.log(`Previous count: ${prevState.drugsCount} drugs\n`);
+    console.log(`Previous count: ${prevState.drugsCount} drugs`);
+    if (prevState.lastContentLength) {
+      console.log(`Previous Content-Length: ${prevState.lastContentLength.toLocaleString()} bytes`);
+    }
+    console.log();
+  }
+
+  // Quick check: HEAD request to compare Content-Length
+  const DRUG_LIST_URL = `${DPD_API_URL}/drugproduct/`;
+  const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+
+  // Always do HEAD request first to get Content-Length
+  // Note: Must disable gzip (Accept-Encoding: identity) or server won't send Content-Length
+  let currentContentLength = 0;
+  console.log('Checking Content-Length via HEAD request...');
+  try {
+    const headResponse = await fetch(DRUG_LIST_URL, {
+      method: 'HEAD',
+      headers: { 'Accept-Encoding': 'identity' },
+    });
+    currentContentLength = parseInt(headResponse.headers.get('content-length') || '0', 10);
+    console.log(`  Current Content-Length: ${currentContentLength.toLocaleString()} bytes`);
+  } catch (e) {
+    console.log('  HEAD request failed, will proceed with full sync');
+  }
+
+  if (!force && prevState?.lastContentLength && prevState?.lastFullSyncTimestamp && currentContentLength > 0) {
+    const timeSinceFullSync = Date.now() - new Date(prevState.lastFullSyncTimestamp).getTime();
+    const monthsSinceFullSync = (timeSinceFullSync / ONE_MONTH_MS).toFixed(1);
+
+    console.log(`  Previous Content-Length: ${prevState.lastContentLength.toLocaleString()} bytes`);
+    console.log(`  Time since full sync: ${monthsSinceFullSync} months`);
+
+    if (currentContentLength === prevState.lastContentLength && timeSinceFullSync < ONE_MONTH_MS) {
+      console.log('\n  Content-Length unchanged and < 1 month since full sync.');
+      console.log('  Skipping sync - no changes detected.\n');
+
+      // Update timestamp but keep same content length
+      saveSyncState({
+        ...prevState,
+        lastSyncTimestamp: new Date().toISOString(),
+      });
+
+      console.log('=== Sync Complete (No Changes) ===');
+      return;
+    }
+
+    if (currentContentLength !== prevState.lastContentLength) {
+      console.log(`\n  Content-Length changed: ${prevState.lastContentLength.toLocaleString()} → ${currentContentLength.toLocaleString()}`);
+    }
+    if (timeSinceFullSync >= ONE_MONTH_MS) {
+      console.log('\n  Monthly full sync required.');
+    }
   }
 
   // Fetch all drugs from API
-  console.log('Fetching drug list from API (~15MB)...');
-  const apiDrugs = await fetchJSON<APIDrug[]>(`${DPD_API_URL}/drugproduct/`);
+  console.log('\nFetching drug list from API (~14MB)...');
+  const response = await fetchWithTimeout(DRUG_LIST_URL);
+  const apiDrugs = await response.json() as APIDrug[];
   console.log(`Fetched ${apiDrugs.length} drugs\n`);
 
   // Get all existing drugs from DB
@@ -530,6 +590,8 @@ async function runIncremental(db: ReturnType<typeof drizzle>, force: boolean) {
     saveSyncState({
       lastSyncTimestamp: new Date().toISOString(),
       drugsCount: apiDrugs.length,
+      lastContentLength: currentContentLength,
+      lastFullSyncTimestamp: new Date().toISOString(),
     });
     return;
   }
@@ -597,6 +659,8 @@ async function runIncremental(db: ReturnType<typeof drizzle>, force: boolean) {
   saveSyncState({
     lastSyncTimestamp: new Date().toISOString(),
     drugsCount: apiDrugs.length,
+    lastContentLength: currentContentLength,
+    lastFullSyncTimestamp: new Date().toISOString(),
   });
 
   console.log('=== Incremental Sync Complete ===');
