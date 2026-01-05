@@ -49,6 +49,3 @@ next-env.d.ts
 .fetch-progress.json
 .dpd-temp/
 
-# DPD data (if saved locally instead of DB)
-dpd/
-
