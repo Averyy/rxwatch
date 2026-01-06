@@ -14,11 +14,15 @@
       "mcp__filesystem__read_multiple_files",
       "Bash(find:*)",
       "Bash(gzip:*)",
-      "mcp__filesystem__search_files"
+      "mcp__filesystem__search_files",
+      "Skill(reviewing-local-changes)",
+      "Bash(lsof:*)",
+      "mcp__shadcn__search_items_in_registries"
     ]
   },
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
-    "fetchaller"
+    "fetchaller",
+    "shadcn"
   ]
 }

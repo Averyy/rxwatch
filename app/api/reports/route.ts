@@ -95,6 +95,7 @@ export async function GET(request: Request) {
         din: reports.din,
         brandName: reports.brandName,
         commonName: reports.commonName,
+        type: reports.type,
         status: reports.status,
         reasonEn: reports.reasonEn,
         company: reports.company,

@@ -2,13 +2,14 @@
 
 import * as React from "react"
 import { useState, useEffect } from "react"
-import { Search, Menu } from "lucide-react"
+import { usePathname } from "next/navigation"
+import { Menu } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { useMobileNav } from "@/components/mobile-nav"
+import { DrugSearch } from "@/components/drug-search"
 
 function formatSyncTime(dateStr: string | null): string {
   if (!dateStr) return 'Unknown';
@@ -40,9 +41,13 @@ function formatSyncTime(dateStr: string | null): string {
 }
 
 export function SiteHeader() {
+  const pathname = usePathname()
   const { openMobileNav } = useMobileNav()
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
   const [syncText, setSyncText] = useState('Checking...')
+
+  // Hide header on homepage (has its own search)
+  const isHomepage = pathname === '/'
 
   // Fetch last sync time on mount and every minute
   useEffect(() => {
@@ -74,6 +79,23 @@ export function SiteHeader() {
     return () => clearInterval(interval);
   }, [lastSyncedAt]);
 
+  // On homepage, only show mobile menu button (minimal header)
+  if (isHomepage) {
+    return (
+      <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-2 border-b px-3 md:px-4 bg-background/80 backdrop-blur-sm supports-[backdrop-filter]:bg-background/60 md:hidden">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="cursor-pointer gap-2 -ml-1"
+          onClick={openMobileNav}
+        >
+          <Menu className="h-5 w-5" />
+          <span className="text-sm font-medium">Menu</span>
+        </Button>
+      </header>
+    )
+  }
+
   return (
     <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-2 border-b px-3 md:px-4 bg-background/80 backdrop-blur-sm supports-[backdrop-filter]:bg-background/60">
       <Button
@@ -87,14 +109,11 @@ export function SiteHeader() {
       </Button>
       <SidebarTrigger className="-ml-1 hidden md:flex" />
       <Separator orientation="vertical" className="mr-2 h-4 hidden md:block" />
-      <div className="relative flex-1 max-w-2xl hidden md:block">
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input
-          type="search"
-          placeholder="Search all drugs and shortage reports..."
-          className="pl-8 h-9"
-        />
-      </div>
+      <DrugSearch
+        variant="header"
+        placeholder="Search all drugs and shortage reports..."
+        className="flex-1 max-w-2xl hidden md:block"
+      />
       <div className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
         <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
         <span>Synced {syncText}</span>
