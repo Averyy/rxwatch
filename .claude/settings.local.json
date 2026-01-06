@@ -5,7 +5,16 @@
       "mcp__github__search_issues",
       "mcp__shadcn__get_project_registries",
       "mcp__shadcn__get_add_command_for_items",
-      "mcp__shadcn__get_item_examples_from_registries"
+      "mcp__shadcn__get_item_examples_from_registries",
+      "mcp__filesystem__read_text_file",
+      "Bash(wc:*)",
+      "Bash(yarn poll-shortages:*)",
+      "Bash(yarn sync-dpd:*)",
+      "Bash(time curl:*)",
+      "mcp__filesystem__read_multiple_files",
+      "Bash(find:*)",
+      "Bash(gzip:*)",
+      "mcp__filesystem__search_files"
     ]
   },
   "enableAllProjectMcpServers": true,

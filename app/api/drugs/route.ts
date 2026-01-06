@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db, drugs } from '@/db';
-import { desc, asc, sql } from 'drizzle-orm';
+import { asc, sql, type SQL } from 'drizzle-orm';
+
+// Input validation constants
+const MAX_PARAM_LENGTH = 100;
+const ATC_PATTERN = /^[A-Z0-9]{1,7}$/i;
 
 /**
  * GET /api/drugs
@@ -28,7 +32,7 @@ export async function GET(request: Request) {
     const marketed = searchParams.get('marketed');
 
     // Build query conditions
-    const conditions = [];
+    const conditions: SQL[] = [];
 
     if (hasReports === 'true') {
       conditions.push(sql`${drugs.hasReports} = true`);
@@ -45,15 +49,24 @@ export async function GET(request: Request) {
     }
 
     if (company) {
-      conditions.push(sql`${drugs.company} ILIKE ${'%' + company + '%'}`);
+      const safeCompany = company.slice(0, MAX_PARAM_LENGTH);
+      conditions.push(sql`${drugs.company} ILIKE ${'%' + safeCompany + '%'}`);
     }
 
     if (atc) {
-      conditions.push(sql`${drugs.atcCode} LIKE ${atc + '%'}`);
+      const safeAtc = atc.slice(0, 7); // ATC codes are max 7 chars
+      if (!ATC_PATTERN.test(safeAtc)) {
+        return NextResponse.json(
+          { error: 'Invalid ATC code format. Must be alphanumeric, max 7 characters.' },
+          { status: 400 }
+        );
+      }
+      conditions.push(sql`${drugs.atcCode} LIKE ${safeAtc + '%'}`);
     }
 
     if (ingredient) {
-      conditions.push(sql`${drugs.activeIngredient} ILIKE ${'%' + ingredient + '%'}`);
+      const safeIngredient = ingredient.slice(0, MAX_PARAM_LENGTH);
+      conditions.push(sql`${drugs.activeIngredient} ILIKE ${'%' + safeIngredient + '%'}`);
     }
 
     if (marketed === 'true') {
@@ -61,9 +74,9 @@ export async function GET(request: Request) {
     }
 
     // Query drugs with filters
+    // Only select fields needed for table display
     const result = await db
       .select({
-        id: drugs.id,
         din: drugs.din,
         brandName: drugs.brandName,
         commonName: drugs.commonName,
@@ -71,11 +84,9 @@ export async function GET(request: Request) {
         strength: drugs.strength,
         strengthUnit: drugs.strengthUnit,
         form: drugs.form,
-        route: drugs.route,
         atcCode: drugs.atcCode,
         company: drugs.company,
         currentStatus: drugs.currentStatus,
-        hasReports: drugs.hasReports,
         marketStatus: drugs.marketStatus,
       })
       .from(drugs)
@@ -89,7 +100,10 @@ export async function GET(request: Request) {
       headers: { 'Cache-Control': 'public, max-age=900' }, // 15 min
     });
   } catch (error) {
-    console.error('Error fetching drugs:', error);
+    console.error('Error fetching drugs:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     return NextResponse.json(
       { error: 'Failed to fetch drugs' },
       { status: 500 }

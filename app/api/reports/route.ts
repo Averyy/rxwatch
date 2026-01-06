@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db, reports } from '@/db';
-import { desc, asc, sql, eq } from 'drizzle-orm';
+import { desc, asc, sql, eq, type SQL } from 'drizzle-orm';
 
 /**
  * GET /api/reports
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     const limit = limitParam ? parseInt(limitParam) : undefined;
 
     // Build query conditions
-    const conditions = [];
+    const conditions: SQL[] = [];
 
     // Active = not resolved, not reversed, not avoided
     if (active === 'true') {
@@ -91,14 +91,10 @@ export async function GET(request: Request) {
     // Query all reports (or filtered subset)
     const result = await db
       .select({
-        id: reports.id,
         reportId: reports.reportId,
         din: reports.din,
         brandName: reports.brandName,
         commonName: reports.commonName,
-        drugStrength: reports.drugStrength,
-        drugDosageForm: reports.drugDosageForm,
-        type: reports.type,
         status: reports.status,
         reasonEn: reports.reasonEn,
         company: reports.company,
@@ -107,6 +103,7 @@ export async function GET(request: Request) {
         actualStartDate: reports.actualStartDate,
         estimatedEndDate: reports.estimatedEndDate,
         actualEndDate: reports.actualEndDate,
+        anticipatedDiscontinuationDate: reports.anticipatedDiscontinuationDate,
         discontinuationDate: reports.discontinuationDate,
         apiCreatedDate: reports.apiCreatedDate,
         apiUpdatedDate: reports.apiUpdatedDate,

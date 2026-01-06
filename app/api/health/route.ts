@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db, drugs, reports } from '@/db';
-import { sql } from 'drizzle-orm';
+import { sql, desc } from 'drizzle-orm';
 
 /**
  * GET /api/health
@@ -12,6 +12,13 @@ export async function GET() {
     const [drugCount] = await db.select({ count: sql<number>`count(*)` }).from(drugs);
     const [reportCount] = await db.select({ count: sql<number>`count(*)` }).from(reports);
 
+    // Get the most recent sync time (latest updatedAt from reports)
+    const [lastSync] = await db
+      .select({ updatedAt: reports.updatedAt })
+      .from(reports)
+      .orderBy(desc(reports.updatedAt))
+      .limit(1);
+
     return NextResponse.json({
       status: 'healthy',
       database: 'connected',
@@ -19,7 +26,10 @@ export async function GET() {
         drugs: Number(drugCount.count),
         reports: Number(reportCount.count),
       },
+      lastSyncedAt: lastSync?.updatedAt?.toISOString() || null,
       timestamp: new Date().toISOString(),
+    }, {
+      headers: { 'Cache-Control': 'public, max-age=60' }, // 1 min cache
     });
   } catch (error) {
     console.error('Health check failed:', error);
