@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { AgGridReact } from 'ag-grid-react';
 import {
@@ -15,6 +15,67 @@ import type { ColDef, IRowNode } from 'ag-grid-community';
 import { MagnifyingGlass, X, Funnel, CaretLeft, CaretRight, CaretDoubleLeft, CaretDoubleRight } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { Skeleton } from '@/components/ui/skeleton';
+
+// Skeleton loading component for reports page
+function ReportsPageSkeleton() {
+  return (
+    <div className="flex flex-col gap-3 h-[calc(100vh-6rem)]">
+      {/* Header skeleton */}
+      <div className="flex items-baseline justify-between flex-shrink-0">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-32" />
+      </div>
+
+      {/* Filters skeleton */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-shrink-0">
+        <Skeleton className="h-10 w-full max-w-md" />
+        <Skeleton className="h-9 w-28" />
+        <div className="flex items-center gap-2 flex-wrap">
+          <Skeleton className="h-7 w-14" />
+          {[...Array(7)].map((_, i) => (
+            <Skeleton key={i} className="h-7 w-20" />
+          ))}
+        </div>
+      </div>
+
+      {/* Grid skeleton */}
+      <div className="flex-1 min-h-0 w-full rounded-lg border overflow-hidden bg-background flex flex-col">
+        {/* Header row */}
+        <div className="grid grid-cols-[80px_80px_1fr_1fr_100px_1.5fr_100px_100px_120px] border-b bg-muted/30 px-4 py-3 gap-4 flex-shrink-0">
+          {['Report ID', 'DIN', 'Brand', 'Common', 'Status', 'Reason', 'Tier 3', 'Late', 'Updated'].map((_, i) => (
+            <Skeleton key={i} className="h-4 w-3/4" />
+          ))}
+        </div>
+        {/* Data rows - fill remaining space */}
+        <div className="flex-1 overflow-hidden">
+          {[...Array(25)].map((_, i) => (
+            <div key={i} className="grid grid-cols-[80px_80px_1fr_1fr_100px_1.5fr_100px_100px_120px] border-b px-4 py-3 gap-4">
+              {[...Array(9)].map((_, j) => (
+                <Skeleton key={j} className="h-4 w-4/5" />
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Pagination skeleton */}
+      <div className="flex items-center justify-between px-4 py-2 flex-shrink-0">
+        <Skeleton className="h-9 w-44" />
+        <div className="flex items-center gap-2">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-8 w-8" />
+          ))}
+          <Skeleton className="h-4 w-24 mx-2" />
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-8 w-8" />
+          ))}
+        </div>
+        <Skeleton className="h-4 w-36" />
+      </div>
+    </div>
+  );
+}
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -40,6 +101,7 @@ interface Report {
   din: string | null;
   brandName: string | null;
   commonName: string | null;
+  type: 'shortage' | 'discontinuation';
   status: string | null;
   reasonEn: string | null;
   company: string | null;
@@ -120,18 +182,51 @@ function BooleanCellRenderer(props: { value: boolean | null; label: string }) {
 
 export default function ReportsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { resolvedTheme } = useTheme();
   const gridRef = useRef<AgGridReact<Report>>(null);
   const [rowData, setRowData] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const initializedFromUrl = useRef(false);
 
-  // Filter state
-  const [searchText, setSearchText] = useState('');
-  const [statusFilters, setStatusFilters] = useState<string[]>([]);
-  const [tier3Only, setTier3Only] = useState(false);
-  const [dateRange, setDateRange] = useState<string>('3years'); // Server-side filter
+  // Initialize filter state from URL params
+  const getInitialStatusFilters = (): string[] => {
+    const statusParam = searchParams.get('status');
+    if (!statusParam) return [];
+    // Support both single status and comma-separated statuses
+    return statusParam.split(',').filter(s => STATUS_CONFIG[s]);
+  };
+
+  const getInitialTier3 = (): boolean => {
+    return searchParams.get('tier3') === 'true';
+  };
+
+  const getInitialDateRange = (): string => {
+    const range = searchParams.get('range');
+    if (range && ['thisYear', 'lastYear', '3years', '5years', 'all'].includes(range)) {
+      return range;
+    }
+    return '3years';
+  };
+
+  const getInitialSearch = (): string => {
+    return searchParams.get('search') || '';
+  };
+
+  const getInitialType = (): 'shortage' | 'discontinuation' | 'all' => {
+    const type = searchParams.get('type');
+    if (type === 'shortage' || type === 'discontinuation') return type;
+    return 'all';
+  };
+
+  // Filter state - initialized from URL params
+  const [searchText, setSearchText] = useState(getInitialSearch);
+  const [statusFilters, setStatusFilters] = useState<string[]>(getInitialStatusFilters);
+  const [tier3Only, setTier3Only] = useState(getInitialTier3);
+  const [typeFilter, setTypeFilter] = useState<'shortage' | 'discontinuation' | 'all'>(getInitialType);
+  const [dateRange, setDateRange] = useState<string>(getInitialDateRange);
   const [displayedRowCount, setDisplayedRowCount] = useState(0);
 
   // Calculate the since date based on dateRange
@@ -160,7 +255,44 @@ export default function ReportsPage() {
   // Wait for client-side mount to avoid hydration mismatch
   useEffect(() => {
     setMounted(true);
+    initializedFromUrl.current = true;
   }, []);
+
+  // Sync filter state to URL (after initial mount)
+  useEffect(() => {
+    if (!initializedFromUrl.current) return;
+
+    const params = new URLSearchParams();
+
+    // Add status filters (comma-separated if multiple)
+    if (statusFilters.length > 0) {
+      params.set('status', statusFilters.join(','));
+    }
+
+    // Add tier3 filter
+    if (tier3Only) {
+      params.set('tier3', 'true');
+    }
+
+    // Add type filter
+    if (typeFilter !== 'all') {
+      params.set('type', typeFilter);
+    }
+
+    // Add date range (only if not default)
+    if (dateRange !== '3years') {
+      params.set('range', dateRange);
+    }
+
+    // Add search text
+    if (searchText.trim()) {
+      params.set('search', searchText.trim());
+    }
+
+    // Update URL without adding to history
+    const newUrl = params.toString() ? `?${params.toString()}` : '/reports';
+    router.replace(newUrl, { scroll: false });
+  }, [statusFilters, tier3Only, typeFilter, dateRange, searchText, router]);
 
   // Column definitions
   const columnDefs = useMemo<ColDef<Report>[]>(() => [
@@ -270,7 +402,7 @@ export default function ReportsPage() {
     resizable: true,
   }), []);
 
-  // Fetch reports when dateRange changes
+  // Fetch reports when dateRange or typeFilter changes (server-side filtering)
   useEffect(() => {
     const abortController = new AbortController();
 
@@ -278,9 +410,10 @@ export default function ReportsPage() {
       try {
         setLoading(true);
         const sinceDate = getSinceDate(dateRange);
-        const url = sinceDate
-          ? `/api/reports?since=${sinceDate}`
-          : '/api/reports';
+        const params = new URLSearchParams();
+        if (sinceDate) params.set('since', sinceDate);
+        if (typeFilter !== 'all') params.set('type', typeFilter);
+        const url = `/api/reports${params.toString() ? '?' + params.toString() : ''}`;
         const response = await fetch(url, {
           signal: abortController.signal,
         });
@@ -310,7 +443,7 @@ export default function ReportsPage() {
     return () => {
       abortController.abort();
     };
-  }, [dateRange]);
+  }, [dateRange, typeFilter]);
 
   // Handle row click - navigate to report detail page
   const onRowClicked = (event: { data: Report | undefined }) => {
@@ -351,6 +484,7 @@ export default function ReportsPage() {
   }, []);
 
   // External filter: check if filter is present (AG Grid pattern)
+  // Note: typeFilter is handled server-side for better performance
   const isExternalFilterPresent = useCallback(() => {
     return statusFilters.length > 0 || tier3Only;
   }, [statusFilters, tier3Only]);
@@ -379,7 +513,7 @@ export default function ReportsPage() {
   }, [statusFilters, tier3Only]);
 
   // Check if any filters are active (for count text)
-  const hasActiveFilters = searchText.length > 0 || statusFilters.length > 0 || tier3Only;
+  const hasActiveFilters = searchText.length > 0 || statusFilters.length > 0 || tier3Only || typeFilter !== 'all';
 
   // Create theme with dark mode support and app branding
   const theme = useMemo(() => {
@@ -424,6 +558,17 @@ export default function ReportsPage() {
       });
   }, [resolvedTheme]);
 
+  // Filtered count text - use displayedRowCount when filters active, otherwise rowData.length
+  const countText = useMemo(() => {
+    if (loading) return 'Loading...';
+    // When filters are active and we have a valid displayed count, show filtered count
+    if (hasActiveFilters && displayedRowCount > 0 && displayedRowCount !== rowData.length) {
+      return `${displayedRowCount.toLocaleString()} of ${rowData.length.toLocaleString()} reports`;
+    }
+    return `${rowData.length.toLocaleString()} shortage reports`;
+  }, [loading, hasActiveFilters, displayedRowCount, rowData.length]);
+
+  // Early returns AFTER all hooks
   if (error) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-10rem)]">
@@ -435,15 +580,10 @@ export default function ReportsPage() {
     );
   }
 
-  // Filtered count text - use displayedRowCount when filters active, otherwise rowData.length
-  const countText = useMemo(() => {
-    if (loading) return 'Loading...';
-    // When filters are active and we have a valid displayed count, show filtered count
-    if (hasActiveFilters && displayedRowCount > 0 && displayedRowCount !== rowData.length) {
-      return `${displayedRowCount.toLocaleString()} of ${rowData.length.toLocaleString()} reports`;
-    }
-    return `${rowData.length.toLocaleString()} shortage reports`;
-  }, [loading, hasActiveFilters, displayedRowCount, rowData.length]);
+  // Show skeleton while initially loading (before data arrives)
+  if (loading && rowData.length === 0) {
+    return <ReportsPageSkeleton />;
+  }
 
   return (
     <div className="flex flex-col gap-3 h-[calc(100vh-6rem)]">
@@ -548,8 +688,20 @@ export default function ReportsPage() {
             Tier 3
           </button>
 
+          {/* Type filter */}
+          <div className="h-4 w-px bg-border mx-1" />
+          <NativeSelect
+            size="sm"
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value as 'shortage' | 'discontinuation' | 'all')}
+          >
+            <NativeSelectOption value="all">All types</NativeSelectOption>
+            <NativeSelectOption value="shortage">Shortages only</NativeSelectOption>
+            <NativeSelectOption value="discontinuation">Discontinuations only</NativeSelectOption>
+          </NativeSelect>
+
           {/* Reset filters button (only when any filter is active) */}
-          {(searchText || statusFilters.length > 0 || tier3Only) && (
+          {(searchText || statusFilters.length > 0 || tier3Only || typeFilter !== 'all') && (
             <Button
               variant="ghost"
               size="xs"
@@ -557,6 +709,7 @@ export default function ReportsPage() {
                 setSearchText('');
                 setStatusFilters([]);
                 setTier3Only(false);
+                setTypeFilter('all');
               }}
             >
               <X size={12} />

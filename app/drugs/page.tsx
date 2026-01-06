@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { AgGridReact } from 'ag-grid-react';
 import {
@@ -15,6 +15,66 @@ import type { ColDef, IRowNode } from 'ag-grid-community';
 import { MagnifyingGlass, X, Funnel, CaretLeft, CaretRight, CaretDoubleLeft, CaretDoubleRight } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import { Skeleton } from '@/components/ui/skeleton';
+
+// Skeleton loading component for drugs page
+function DrugsPageSkeleton() {
+  return (
+    <div className="flex flex-col gap-3 h-[calc(100vh-6rem)]">
+      {/* Header skeleton */}
+      <div className="flex items-baseline justify-between flex-shrink-0">
+        <Skeleton className="h-8 w-52" />
+        <Skeleton className="h-4 w-40" />
+      </div>
+
+      {/* Filters skeleton */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-shrink-0">
+        <Skeleton className="h-10 w-full max-w-md" />
+        <div className="flex items-center gap-2 flex-wrap">
+          <Skeleton className="h-7 w-14" />
+          {[...Array(5)].map((_, i) => (
+            <Skeleton key={i} className="h-7 w-24" />
+          ))}
+        </div>
+      </div>
+
+      {/* Grid skeleton */}
+      <div className="flex-1 min-h-0 w-full rounded-lg border overflow-hidden bg-background flex flex-col">
+        {/* Header row */}
+        <div className="grid grid-cols-[90px_1fr_1fr_1.2fr_100px_100px_1fr] border-b bg-muted/30 px-4 py-3 gap-4 flex-shrink-0">
+          {['DIN', 'Common', 'Brand', 'Ingredient', 'Strength', 'Form', 'Company'].map((_, i) => (
+            <Skeleton key={i} className="h-4 w-3/4" />
+          ))}
+        </div>
+        {/* Data rows - fill remaining space */}
+        <div className="flex-1 overflow-hidden">
+          {[...Array(25)].map((_, i) => (
+            <div key={i} className="grid grid-cols-[90px_1fr_1fr_1.2fr_100px_100px_1fr] border-b px-4 py-3 gap-4">
+              {[...Array(7)].map((_, j) => (
+                <Skeleton key={j} className="h-4 w-4/5" />
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Pagination skeleton */}
+      <div className="flex items-center justify-between px-4 py-2 flex-shrink-0">
+        <Skeleton className="h-9 w-44" />
+        <div className="flex items-center gap-2">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-8 w-8" />
+          ))}
+          <Skeleton className="h-4 w-24 mx-2" />
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-8 w-8" />
+          ))}
+        </div>
+        <Skeleton className="h-4 w-36" />
+      </div>
+    </div>
+  );
+}
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -87,16 +147,29 @@ function StatusCellRenderer(props: { value: string | null }) {
 
 export default function DrugsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { resolvedTheme } = useTheme();
   const gridRef = useRef<AgGridReact<Drug>>(null);
   const [rowData, setRowData] = useState<Drug[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const initializedFromUrl = useRef(false);
 
-  // Filter state
-  const [searchText, setSearchText] = useState('');
-  const [statusFilters, setStatusFilters] = useState<string[]>([]);
+  // Initialize filter state from URL params
+  const getInitialStatusFilters = (): string[] => {
+    const statusParam = searchParams.get('status');
+    if (!statusParam) return [];
+    return statusParam.split(',').filter(s => STATUS_CONFIG[s]);
+  };
+
+  const getInitialSearch = (): string => {
+    return searchParams.get('search') || '';
+  };
+
+  // Filter state - initialized from URL params
+  const [searchText, setSearchText] = useState(getInitialSearch);
+  const [statusFilters, setStatusFilters] = useState<string[]>(getInitialStatusFilters);
   const [displayedRowCount, setDisplayedRowCount] = useState(0);
 
   // Pagination state
@@ -107,7 +180,26 @@ export default function DrugsPage() {
   // Wait for client-side mount to avoid hydration mismatch
   useEffect(() => {
     setMounted(true);
+    initializedFromUrl.current = true;
   }, []);
+
+  // Sync filter state to URL (after initial mount)
+  useEffect(() => {
+    if (!initializedFromUrl.current) return;
+
+    const params = new URLSearchParams();
+
+    if (statusFilters.length > 0) {
+      params.set('status', statusFilters.join(','));
+    }
+
+    if (searchText.trim()) {
+      params.set('search', searchText.trim());
+    }
+
+    const newUrl = params.toString() ? `?${params.toString()}` : '/drugs';
+    router.replace(newUrl, { scroll: false });
+  }, [statusFilters, searchText, router]);
 
   // Column definitions
   const columnDefs = useMemo<ColDef<Drug>[]>(() => [
@@ -320,6 +412,17 @@ export default function DrugsPage() {
       });
   }, [resolvedTheme]);
 
+  // Filtered count text - use displayedRowCount when filters active, otherwise rowData.length
+  const countText = useMemo(() => {
+    if (loading) return 'Loading...';
+    // When filters are active and we have a valid displayed count, show filtered count
+    if (hasActiveFilters && displayedRowCount > 0 && displayedRowCount !== rowData.length) {
+      return `${displayedRowCount.toLocaleString()} of ${rowData.length.toLocaleString()} drugs`;
+    }
+    return `${rowData.length.toLocaleString()} drugs with shortage history`;
+  }, [loading, hasActiveFilters, displayedRowCount, rowData.length]);
+
+  // Early returns AFTER all hooks
   if (error) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-10rem)]">
@@ -331,15 +434,10 @@ export default function DrugsPage() {
     );
   }
 
-  // Filtered count text - use displayedRowCount when filters active, otherwise rowData.length
-  const countText = useMemo(() => {
-    if (loading) return 'Loading...';
-    // When filters are active and we have a valid displayed count, show filtered count
-    if (hasActiveFilters && displayedRowCount > 0 && displayedRowCount !== rowData.length) {
-      return `${displayedRowCount.toLocaleString()} of ${rowData.length.toLocaleString()} drugs`;
-    }
-    return `${rowData.length.toLocaleString()} drugs with shortage history`;
-  }, [loading, hasActiveFilters, displayedRowCount, rowData.length]);
+  // Show skeleton while initially loading (before data arrives)
+  if (loading && rowData.length === 0) {
+    return <DrugsPageSkeleton />;
+  }
 
   return (
     <div className="flex flex-col gap-3 h-[calc(100vh-6rem)]">
