@@ -70,36 +70,37 @@ yarn dev
 | Component | Status | Notes |
 |-----------|--------|-------|
 | **Data Pipeline** | | |
-| Database schema | Done | Drizzle schema with drugs + reports tables |
-| DSC history fetch | Done | 27,823 reports fetched to history/ |
-| DSC backfill script | Done | Imports history to database |
-| DPD sync script | Done | 57,512 drugs synced with caching |
-| DSC poll script | Not started | Cron for ongoing updates |
+| Database schema | ✅ Done | Drizzle schema with drugs + reports tables |
+| DSC history fetch | ✅ Done | 27,823 reports fetched to history/ |
+| DSC backfill script | ✅ Done | Imports history to database |
+| DPD sync script | ✅ Done | 57,512 drugs synced with caching |
+| DSC poll script | ✅ Done | Cron for ongoing updates |
 | **API Routes** | | |
-| /api/search | Not started | Global search endpoint |
-| /api/drugs | Not started | Drug list + detail |
-| /api/reports | Not started | Report list + detail |
-| /api/alternatives | Not started | Find alternatives by DIN |
+| /api/drugs | ✅ Done | Drug list with filters |
+| /api/reports | ✅ Done | Report list with date range filter |
+| /api/health | ✅ Done | Health check + last sync time |
+| /api/search | Not started | Global fuzzy search endpoint |
+| /api/drugs/[din]/alternatives | Not started | Find alternatives by DIN |
 | /api/stats | Not started | Aggregate statistics |
-| /api/cron/poll | Not started | Secured cron endpoint |
 | **Pages** | | |
 | Homepage | Basic | Layout only, no data |
-| /drugs | Not started | AG Grid drug list |
-| /drugs/[din] | Not started | Drug detail page |
-| /reports | Not started | AG Grid report list |
+| /drugs | ✅ Done | AG Grid with status filters, pagination |
+| /drugs/[din] | Not started | Drug detail + alternatives |
+| /reports | ✅ Done | AG Grid with status/tier3/date filters |
 | /reports/[id] | Not started | Report detail page |
 | /stats | Not started | Analytics dashboard |
 | /about | Not started | Static content |
 | **Components** | | |
-| Layout/sidebar | Done | Basic navigation |
+| Layout/sidebar | ✅ Done | Navigation with disclaimer |
+| Live sync indicator | ✅ Done | Header shows last sync time |
+| Data grids | ✅ Done | AG Grid with custom pagination |
 | Search | Not started | Global search bar |
-| Data grids | Not started | AG Grid tables |
 | Charts | Not started | Recharts visualizations |
 
-**Database stats (as of Jan 5, 2026):**
+**Database stats (as of Jan 6, 2026):**
 - 57,512 drugs from Health Canada DPD
-- 27,823 shortage/discontinuation reports from DSC
-- 8,777 drugs with shortage history
+- 27,827 shortage/discontinuation reports from DSC
+- 8,778 drugs with shortage history
 
 ## Disclaimer
 
