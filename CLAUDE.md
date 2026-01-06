@@ -14,21 +14,22 @@
 - [x] Theme toggle (light/dark)
 - [x] SQL dump created for prod deployment (107MB)
 - [x] pg_trgm extension + GIN indexes for fuzzy search
-- [x] API routes (`/api/drugs`, `/api/reports`, `/api/search`, `/api/health`)
+- [x] API routes (`/api/drugs`, `/api/reports`, `/api/search`, `/api/stats`, `/api/health`)
 - [x] `/drugs` page with AG Grid (8,778 drugs with shortage history)
 - [x] `/reports` page with AG Grid (27,827 reports)
 - [x] Multi-select status filters, Tier 3 filter, date range filter
 - [x] Custom pagination with page size selector
 - [x] Live sync time indicator in header
 - [x] shadcn native-select and select components
+- [x] Homepage with stats cards, search, critical shortages, recent discontinuations
+- [x] Skeleton loading states for drugs and reports pages
 
 ### What's Not Built Yet
-- [ ] Homepage with search + recent reports + stats
+- [ ] DrugSearch autocomplete dropdown styling
 - [ ] `/drugs/[din]` detail page with alternatives
 - [ ] `/reports/[id]` detail page
 - [ ] `/stats` analytics page with charts
 - [ ] `/about` static page
-- [ ] Global search component (header search bar)
 - [ ] i18n (EN/FR)
 - [ ] iOS app
 
