@@ -28,10 +28,10 @@
 - [x] Alternatives section with collapsible "Same Ingredient" and "Same Therapeutic Class" lists
 - [x] Event-based timeline showing all shortage/discontinuation events for a drug
 - [x] SEO metadata generation for drug detail pages
+- [x] `/reports/[id]` detail page with report info, linked drug card, and external link
 
 ### What's Not Built Yet
 - [ ] DrugSearch autocomplete dropdown styling
-- [ ] `/reports/[id]` detail page
 - [ ] `/stats` analytics page with charts
 - [ ] `/about` static page
 - [ ] i18n (EN/FR)

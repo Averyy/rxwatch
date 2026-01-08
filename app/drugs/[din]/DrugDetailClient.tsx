@@ -799,6 +799,8 @@ function DrugDetails({ drug }: { drug: Drug }) {
     { label: 'DPD Last Updated', value: formatDate(drug.dpdLastUpdated) },
   ];
 
+  let rowIndex = 0;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -807,39 +809,36 @@ function DrugDetails({ drug }: { drug: Drug }) {
       className="space-y-4"
     >
       <h2 className="text-lg font-semibold">Drug Details</h2>
-      <Card className="py-0 gap-0">
-        <CardContent className="p-6">
-          <div className="space-y-4">
+      <Card className="py-0 gap-0 overflow-hidden">
+        <CardContent className="p-0">
+          <div>
             {details.map((item, idx) => {
               if ('section' in item) {
+                rowIndex = 0; // Reset row index for each section
                 return (
-                  <motion.div
+                  <div
                     key={idx}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.2, delay: 0.3 + idx * 0.02 }}
-                    className="pt-4 first:pt-0 pb-2 border-b border-border/50"
+                    className="px-6 py-3 border-b border-border/50 bg-muted/30"
                   >
                     <span className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-widest">
                       {item.section}
                     </span>
-                  </motion.div>
+                  </div>
                 );
               }
               if (!item.value) return null;
+              const isEven = rowIndex % 2 === 0;
+              rowIndex++;
               return (
-                <motion.div
+                <div
                   key={idx}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.2, delay: 0.3 + idx * 0.02 }}
-                  className="flex justify-between items-baseline"
+                  className={`flex justify-between items-baseline gap-4 px-6 py-2.5 ${isEven ? 'bg-muted/20' : ''}`}
                 >
-                  <span className="text-sm text-muted-foreground">{item.label}</span>
+                  <span className="text-sm text-muted-foreground shrink-0">{item.label}</span>
                   <span className={`text-sm font-medium text-right max-w-[60%] ${item.mono ? 'font-mono' : ''}`}>
                     {item.value}
                   </span>
-                </motion.div>
+                </div>
               );
             })}
           </div>
