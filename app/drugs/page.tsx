@@ -13,6 +13,7 @@ import {
 } from 'ag-grid-community';
 import type { ColDef, IRowNode } from 'ag-grid-community';
 import { MagnifyingGlass, X, Funnel, CaretLeft, CaretRight, CaretDoubleLeft, CaretDoubleRight } from '@phosphor-icons/react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -208,6 +209,16 @@ export default function DrugsPage() {
       headerName: 'DIN',
       width: 100,
       pinned: 'left',
+      cellRenderer: (params: { value: string }) => (
+        <Link
+          href={`/drugs/${params.value}`}
+          className="text-primary hover:underline font-mono"
+          onClick={(e) => e.stopPropagation()}
+          prefetch={false}
+        >
+          {params.value}
+        </Link>
+      ),
     },
     {
       field: 'commonName',

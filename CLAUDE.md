@@ -2,7 +2,7 @@
 
 ## Build Progress
 
-**Last updated:** Jan 6, 2026
+**Last updated:** Jan 8, 2026
 
 ### What's Done
 - [x] Database schema (Drizzle + PostgreSQL)
@@ -23,10 +23,14 @@
 - [x] shadcn native-select and select components
 - [x] Homepage with stats cards, search, critical shortages, recent discontinuations
 - [x] Skeleton loading states for drugs and reports pages
+- [x] `/drugs/[din]` detail page with full drug info, status badge, and hero section
+- [x] `/api/drugs/[din]/alternatives` API route (same ingredient + same therapeutic class)
+- [x] Alternatives section with collapsible "Same Ingredient" and "Same Therapeutic Class" lists
+- [x] Event-based timeline showing all shortage/discontinuation events for a drug
+- [x] SEO metadata generation for drug detail pages
 
 ### What's Not Built Yet
 - [ ] DrugSearch autocomplete dropdown styling
-- [ ] `/drugs/[din]` detail page with alternatives
 - [ ] `/reports/[id]` detail page
 - [ ] `/stats` analytics page with charts
 - [ ] `/about` static page

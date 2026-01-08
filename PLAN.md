@@ -369,15 +369,17 @@ See `CLAUDE.md` for full Drizzle schema.
 4. ~~Set up project scaffolding~~
    - [x] Docker + PostgreSQL
    - [x] Drizzle schema
-   - [ ] Next.js app structure
-5. Fetch historical data (scripts/fetch-history.ts)
-6. Backfill database (scripts/backfill.ts)
-7. Build shortage lookup + display
-8. Build alternative suggestions engine
-9. Add recent updates feed
-10. Add /stats page with insights
-11. Add translations (EN/FR)
-12. Deploy to VPS
-13. Launch web beta
-14. Build iOS app (SwiftUI)
-15. Submit to App Store
+   - [x] Next.js app structure
+5. ~~Fetch historical data~~ (scripts/fetch-history.ts) - 27,823 reports
+6. ~~Backfill database~~ (scripts/backfill.ts)
+7. ~~Build shortage lookup + display~~ (/drugs page with AG Grid)
+8. ~~Build alternative suggestions engine~~ (/api/drugs/[din]/alternatives)
+9. ~~Add recent updates feed~~ (Homepage with critical shortages + discontinuations)
+10. ~~Build drug detail page~~ (/drugs/[din] with timeline + alternatives)
+11. Build /reports/[id] detail page
+12. Add /stats page with insights (charts)
+13. Add translations (EN/FR)
+14. Deploy to VPS
+15. Launch web beta
+16. Build iOS app (SwiftUI)
+17. Submit to App Store

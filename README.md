@@ -79,13 +79,13 @@ yarn dev
 | /api/drugs | ✅ Done | Drug list with filters |
 | /api/reports | ✅ Done | Report list with date range filter |
 | /api/health | ✅ Done | Health check + last sync time |
-| /api/search | Not started | Global fuzzy search endpoint |
-| /api/drugs/[din]/alternatives | Not started | Find alternatives by DIN |
-| /api/stats | Not started | Aggregate statistics |
+| /api/search | ✅ Done | Global fuzzy search with pg_trgm |
+| /api/drugs/[din]/alternatives | ✅ Done | Same ingredient + same therapeutic class |
+| /api/stats | ✅ Done | Aggregate statistics |
 | **Pages** | | |
-| Homepage | Basic | Layout only, no data |
+| Homepage | ✅ Done | Stats cards, search, critical shortages, recent discontinuations |
 | /drugs | ✅ Done | AG Grid with status filters, pagination |
-| /drugs/[din] | Not started | Drug detail + alternatives |
+| /drugs/[din] | ✅ Done | Drug detail, timeline, alternatives |
 | /reports | ✅ Done | AG Grid with status/tier3/date filters |
 | /reports/[id] | Not started | Report detail page |
 | /stats | Not started | Analytics dashboard |
@@ -94,10 +94,12 @@ yarn dev
 | Layout/sidebar | ✅ Done | Navigation with disclaimer |
 | Live sync indicator | ✅ Done | Header shows last sync time |
 | Data grids | ✅ Done | AG Grid with custom pagination |
-| Search | Not started | Global search bar |
+| Drug detail page | ✅ Done | Hero, timeline, alternatives sections |
+| Skeleton loaders | ✅ Done | Loading states for all pages |
+| Search | Not started | Global search bar component |
 | Charts | Not started | Recharts visualizations |
 
-**Database stats (as of Jan 6, 2026):**
+**Database stats (as of Jan 8, 2026):**
 - 57,512 drugs from Health Canada DPD
 - 27,827 shortage/discontinuation reports from DSC
 - 8,778 drugs with shortage history

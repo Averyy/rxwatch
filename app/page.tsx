@@ -418,10 +418,10 @@ export default function Home() {
                     </span>
                     <span className="text-xs text-muted-foreground/60">
                       {report.status === 'anticipated_shortage'
-                        ? `Starting ${formatDate(report.anticipatedStartDate)}`
+                        ? `Starting ${formatDate(report.anticipatedStartDate ?? null)}`
                         : report.actualStartDate
                           ? `Since ${formatDate(report.actualStartDate)}`
-                          : `Updated ${formatDate(report.apiUpdatedDate)}`}
+                          : `Updated ${formatDate(report.apiUpdatedDate ?? null)}`}
                     </span>
                   </div>
                 </Link>
@@ -474,8 +474,8 @@ export default function Home() {
                     </span>
                     <span className="text-xs text-muted-foreground/60">
                       {(report.discontinuationDate || report.anticipatedDiscontinuationDate)
-                        ? `On ${formatDate(report.discontinuationDate || report.anticipatedDiscontinuationDate)}`
-                        : `Updated ${formatDate(report.apiUpdatedDate)}`}
+                        ? `On ${formatDate((report.discontinuationDate ?? report.anticipatedDiscontinuationDate) ?? null)}`
+                        : `Updated ${formatDate(report.apiUpdatedDate ?? null)}`}
                     </span>
                   </div>
                 </Link>

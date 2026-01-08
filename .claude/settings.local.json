@@ -17,7 +17,9 @@
       "mcp__filesystem__search_files",
       "Skill(reviewing-local-changes)",
       "Bash(lsof:*)",
-      "mcp__shadcn__search_items_in_registries"
+      "mcp__shadcn__search_items_in_registries",
+      "Bash(npm run type-check:*)",
+      "Bash(npm ls:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
