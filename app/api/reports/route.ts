@@ -15,6 +15,9 @@ import { desc, asc, sql, eq, type SQL } from 'drizzle-orm';
  * - tier3=true                     Only Tier 3 critical shortages
  * - late=true                      Only late submissions
  * - since=2024-01-01               Reports updated since date (ISO format)
+ * - until=2024-12-31               Reports updated until date (ISO format)
+ * - created_since=2024-01-01       Reports created since date (ISO format)
+ * - created_until=2024-12-31       Reports created until date (ISO format)
  * - limit=20                       Limit results (for homepage recent reports)
  */
 const VALID_TYPES = ['shortage', 'discontinuation'];
@@ -31,6 +34,9 @@ export async function GET(request: Request) {
     const tier3 = searchParams.get('tier3');
     const late = searchParams.get('late');
     const since = searchParams.get('since');
+    const until = searchParams.get('until');
+    const createdSince = searchParams.get('created_since');
+    const createdUntil = searchParams.get('created_until');
     const limitParam = searchParams.get('limit');
     const limit = limitParam ? parseInt(limitParam) : undefined;
 
@@ -86,6 +92,18 @@ export async function GET(request: Request) {
 
     if (since) {
       conditions.push(sql`${reports.apiUpdatedDate} >= ${since}::timestamp`);
+    }
+
+    if (until) {
+      conditions.push(sql`${reports.apiUpdatedDate} <= ${until}::timestamp`);
+    }
+
+    if (createdSince) {
+      conditions.push(sql`${reports.apiCreatedDate} >= ${createdSince}::timestamp`);
+    }
+
+    if (createdUntil) {
+      conditions.push(sql`${reports.apiCreatedDate} <= ${createdUntil}::timestamp`);
     }
 
     // Query all reports (or filtered subset)
