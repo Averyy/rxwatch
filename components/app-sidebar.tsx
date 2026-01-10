@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
 import {
@@ -15,6 +16,7 @@ import {
   Shield,
   Scale,
   AlertTriangle,
+  Github,
 } from "lucide-react"
 
 import {
@@ -71,6 +73,12 @@ const navSecondary = [
     url: "/terms",
     icon: Scale,
   },
+  {
+    title: "GitHub",
+    url: "https://github.com/Averyy/rxwatch",
+    icon: Github,
+    external: true,
+  },
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -88,12 +96,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link href="/">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <Pill className="size-4" />
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden shrink-0">
+                  <Image
+                    src="/logo.png"
+                    alt="RxWatch"
+                    width={32}
+                    height={32}
+                    className="size-8 object-contain"
+                  />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">RxWatch</span>
-                  <span className="truncate text-xs text-muted-foreground">Canada</span>
+                  <span className="truncate font-semibold">RxWatch Canada</span>
+                  <span className="truncate text-xs text-muted-foreground">Drug Shortage Intelligence</span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -102,7 +116,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Dashboard</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navMain.map((item) => (
@@ -130,13 +143,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname === item.url}
+                    isActive={!item.external && pathname === item.url}
                     tooltip={item.title}
                   >
-                    <Link href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
+                    {item.external ? (
+                      <a href={item.url} target="_blank" rel="noopener noreferrer">
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </a>
+                    ) : (
+                      <Link href={item.url}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    )}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

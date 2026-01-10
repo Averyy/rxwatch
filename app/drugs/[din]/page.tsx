@@ -1,10 +1,8 @@
 import { Metadata } from 'next';
 import { cache } from 'react';
-import Link from 'next/link';
-import { AlertTriangle } from 'lucide-react';
+import { notFound } from 'next/navigation';
 import { db, drugs, reports } from '@/db';
 import { eq, desc } from 'drizzle-orm';
-import { Button } from '@/components/ui/button';
 import DrugDetailClient, { DrugData } from './DrugDetailClient';
 
 // ===========================================
@@ -147,30 +145,9 @@ export default async function DrugDetailPage({
   const { din } = await params;
   const data = await getDrugData(din);
 
-  // Not found state
+  // Return 404 for invalid/missing drugs
   if (!data) {
-    return (
-      <div className="max-w-4xl mx-auto">
-        <Button variant="ghost" size="default" className="gap-2 mb-6" asChild>
-          <Link href="/drugs">
-            ← Back to all drugs
-          </Link>
-        </Button>
-
-        <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
-          <AlertTriangle className="h-12 w-12 text-destructive" />
-          <h2 className="text-xl font-semibold">Drug Not Found</h2>
-          <p className="text-muted-foreground text-center max-w-md">
-            No drug found with DIN {din}. This may be an invalid DIN or the drug is not in our database.
-          </p>
-          <div className="flex gap-3">
-            <Link href="/drugs">
-              <Button variant="outline">Browse All Drugs</Button>
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
+    return notFound();
   }
 
   return <DrugDetailClient drugData={data} />;

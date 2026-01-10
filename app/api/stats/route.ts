@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db, drugs, reports } from '@/db';
 import { sql, eq, desc } from 'drizzle-orm';
+import { getFromCache, setInCache } from '@/lib/api-cache';
+
+const CACHE_NAMESPACE = 'stats';
+const CACHE_KEY = '__default__';
 
 /**
  * GET /api/stats
@@ -8,8 +12,23 @@ import { sql, eq, desc } from 'drizzle-orm';
  *
  * Homepage uses: reportsByStatus, resolvedLast30Days, recentShortages, recentDiscontinuations, lastSyncedAt
  * Stats page uses: all fields including accountability metrics for journalists/regulators
+ *
+ * Uses in-memory cache to avoid hitting the database on every request.
+ * Cache is invalidated after 15 minutes.
  */
+
 export async function GET() {
+  // Return cached response if still valid
+  const cached = getFromCache<Record<string, unknown>>(CACHE_NAMESPACE, CACHE_KEY);
+  if (cached) {
+    return NextResponse.json(cached, {
+      headers: {
+        'Cache-Control': 'public, max-age=900, stale-while-revalidate=60',
+        'X-Cache': 'HIT',
+      },
+    });
+  }
+
   try {
     // Calculate date ranges
     const thirtyDaysAgo = new Date();
@@ -50,6 +69,7 @@ export async function GET() {
       durationTrendByYear,
       monthlyTrendFull,
       yearlyTotals,
+      rootCausesByYear,
     ] = await Promise.all([
       // Drug counts by status
       db.select({
@@ -504,10 +524,32 @@ export async function GET() {
         GROUP BY EXTRACT(YEAR FROM api_created_date)
         ORDER BY year ASC
       `),
+
+      // Root causes by year (for trend chart)
+      db.execute(sql`
+        SELECT
+          EXTRACT(YEAR FROM api_created_date)::int as year,
+          CASE
+            WHEN lower(reason_en) LIKE '%manufactur%' THEN 'Manufacturing issues'
+            WHEN lower(reason_en) LIKE '%demand%' OR lower(reason_en) LIKE '%increased%' THEN 'Increased demand'
+            WHEN lower(reason_en) LIKE '%supply%' OR lower(reason_en) LIKE '%raw material%' OR lower(reason_en) LIKE '%ingredient%' THEN 'Supply chain'
+            WHEN lower(reason_en) LIKE '%regulatory%' OR lower(reason_en) LIKE '%recall%' OR lower(reason_en) LIKE '%quality%' THEN 'Regulatory/Quality'
+            WHEN lower(reason_en) LIKE '%discontinu%' OR lower(reason_en) LIKE '%business%' THEN 'Business decision'
+            WHEN lower(reason_en) LIKE '%shipping%' OR lower(reason_en) LIKE '%transport%' OR lower(reason_en) LIKE '%logistics%' THEN 'Logistics'
+            WHEN reason_en IS NULL OR reason_en = '' THEN 'Not specified'
+            ELSE 'Other'
+          END as reason_category,
+          count(*) as count
+        FROM reports
+        WHERE type = 'shortage'
+          AND api_created_date >= '2017-01-01'
+        GROUP BY year, reason_category
+        ORDER BY year ASC
+      `),
     ]);
 
-    // Cache for 5 min (homepage needs fresher data)
-    return NextResponse.json({
+    // Build the result object
+    const result = {
       totals: {
         drugs: totalDrugs.count,
         reports: totalReports.count,
@@ -544,6 +586,7 @@ export async function GET() {
         shortagesByIngredientAllTime: Array.isArray(shortagesByIngredientAllTime) ? shortagesByIngredientAllTime : [],
         shortagesByTherapeuticClass: Array.isArray(shortagesByTherapeuticClass) ? shortagesByTherapeuticClass : [],
         rootCauseBreakdown: Array.isArray(rootCauseBreakdown) ? rootCauseBreakdown : [],
+        rootCausesByYear: Array.isArray(rootCausesByYear) ? rootCausesByYear : [],
         repeatOffenders: Array.isArray(repeatOffenders) ? repeatOffenders : [],
         tier3ActiveList: tier3ActiveList,
       },
@@ -558,8 +601,16 @@ export async function GET() {
       },
 
       generatedAt: new Date().toISOString(),
-    }, {
-      headers: { 'Cache-Control': 'public, max-age=300' }, // 5 min
+    };
+
+    // Cache the result in memory
+    setInCache(CACHE_NAMESPACE, CACHE_KEY, result);
+
+    return NextResponse.json(result, {
+      headers: {
+        'Cache-Control': 'public, max-age=900, stale-while-revalidate=60',
+        'X-Cache': 'MISS',
+      },
     });
   } catch (error) {
     console.error('Error fetching stats:', error);

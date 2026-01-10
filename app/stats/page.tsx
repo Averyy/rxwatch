@@ -92,6 +92,11 @@ interface StatsData {
       reason_category: string;
       count: string;
     }>;
+    rootCausesByYear: Array<{
+      year: number;
+      reason_category: string;
+      count: string;
+    }>;
     repeatOffenders: Array<{
       company: string;
       total_shortages: string;
@@ -191,6 +196,14 @@ const durationConfig: ChartConfig = {
 
 const therapeuticConfig: ChartConfig = {
   active_reports: { label: 'Active Reports', color: 'hsl(0, 84%, 60%)' },
+};
+
+const rootCauseConfig: ChartConfig = {
+  manufacturing: { label: 'Manufacturing issues', color: 'hsl(0, 84%, 60%)' },
+  demand: { label: 'Increased demand', color: 'hsl(38, 92%, 50%)' },
+  logistics: { label: 'Logistics', color: 'hsl(280, 65%, 60%)' },
+  supply: { label: 'Supply chain', color: 'hsl(262, 83%, 58%)' },
+  other: { label: 'Other', color: 'hsl(0, 0%, 60%)' },
 };
 
 // ===========================================
@@ -347,6 +360,32 @@ export default function StatsPage() {
     lateRate: Number(r.late_rate_pct),
     lateCount: Number(r.late_count),
   }));
+
+  // Transform root causes by year data into chart format
+  // Pivot from [{year, reason_category, count}] to [{year, manufacturing, demand, supply, ...}]
+  const rootCausesByYearMap = new Map<number, Record<string, number>>();
+  const reasonKeyMap: Record<string, string> = {
+    'Manufacturing issues': 'manufacturing',
+    'Increased demand': 'demand',
+    'Supply chain': 'supply',
+    'Logistics': 'logistics',
+    'Other': 'other',
+    'Not specified': 'other', // Group with other
+  };
+
+  (accountability.rootCausesByYear || []).forEach(item => {
+    const year = item.year;
+    const key = reasonKeyMap[item.reason_category] || 'other';
+    if (!rootCausesByYearMap.has(year)) {
+      rootCausesByYearMap.set(year, { year });
+    }
+    const entry = rootCausesByYearMap.get(year)!;
+    entry[key] = Number(item.count);
+  });
+
+  const rootCausesByYearData = Array.from(rootCausesByYearMap.values())
+    .sort((a, b) => (a.year as number) - (b.year as number))
+    .map(d => ({ ...d, year: d.year.toString() }));
 
   return (
     <div className="space-y-8">
@@ -796,6 +835,75 @@ export default function StatsPage() {
           </Card>
         </div>
       </div>
+
+      {/* Root Causes Trend Chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            Shortage Root Causes
+          </CardTitle>
+          <CardDescription>
+            Why do shortages happen? (company-reported reasons)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ChartContainer config={rootCauseConfig} className="h-[350px] w-full aspect-auto">
+            <LineChart data={rootCausesByYearData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis dataKey="year" fontSize={12} tickLine={false} axisLine={false} />
+              <YAxis fontSize={12} tickLine={false} axisLine={false} />
+              <ChartTooltip
+                content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null;
+                  const data = payload[0].payload;
+                  const total = (data.manufacturing || 0) + (data.demand || 0) + (data.supply || 0) +
+                    (data.logistics || 0) + (data.other || 0);
+                  return (
+                    <div className="rounded-lg border bg-background px-3 py-2 shadow-md min-w-[180px]">
+                      <p className="font-medium mb-2">{label}</p>
+                      {data.manufacturing > 0 && (
+                        <p className="text-sm" style={{ color: 'hsl(0, 84%, 60%)' }}>
+                          Manufacturing: {data.manufacturing?.toLocaleString()}
+                        </p>
+                      )}
+                      {data.demand > 0 && (
+                        <p className="text-sm" style={{ color: 'hsl(38, 92%, 50%)' }}>
+                          Demand: {data.demand?.toLocaleString()}
+                        </p>
+                      )}
+                      {data.logistics > 0 && (
+                        <p className="text-sm" style={{ color: 'hsl(280, 65%, 60%)' }}>
+                          Logistics: {data.logistics?.toLocaleString()}
+                        </p>
+                      )}
+                      {data.supply > 0 && (
+                        <p className="text-sm" style={{ color: 'hsl(262, 83%, 58%)' }}>
+                          Supply chain: {data.supply?.toLocaleString()}
+                        </p>
+                      )}
+                      {data.other > 0 && (
+                        <p className="text-sm" style={{ color: 'hsl(0, 0%, 60%)' }}>
+                          Other: {data.other?.toLocaleString()}
+                        </p>
+                      )}
+                      <p className="text-sm text-muted-foreground mt-2 pt-2 border-t">
+                        Total: {total.toLocaleString()}
+                      </p>
+                    </div>
+                  );
+                }}
+              />
+              <Legend />
+              <Line type="linear" dataKey="manufacturing" name="Manufacturing issues" stroke="hsl(0, 84%, 60%)" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="linear" dataKey="demand" name="Increased demand" stroke="hsl(38, 92%, 50%)" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="linear" dataKey="logistics" name="Logistics" stroke="hsl(280, 65%, 60%)" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="linear" dataKey="supply" name="Supply chain" stroke="hsl(262, 83%, 58%)" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="linear" dataKey="other" name="Other" stroke="hsl(0, 0%, 60%)" strokeWidth={2} dot={{ r: 3 }} />
+            </LineChart>
+          </ChartContainer>
+        </CardContent>
+      </Card>
 
       {/* Footer */}
       <div className="text-center text-sm text-muted-foreground pb-4 space-y-1">

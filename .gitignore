@@ -44,6 +44,9 @@ coverage/
 *.tsbuildinfo
 next-env.d.ts
 
+# Claude Code local settings
+.claude/
+
 # Sync state files
 .dpd-sync-state.json
 .fetch-progress.json

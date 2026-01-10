@@ -178,13 +178,48 @@ export default function DrugsPageClient() {
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
+  // Track previous URL params to detect external navigation
+  const prevSearchParamsRef = useRef<string>('');
+  const isUpdatingUrl = useRef(false);
+
   // Wait for client-side mount to avoid hydration mismatch
   useEffect(() => {
     setMounted(true);
     initializedFromUrl.current = true;
-  }, []);
+    // Initialize the ref with current params
+    prevSearchParamsRef.current = searchParams.toString();
+  }, [searchParams]);
 
-  // Sync filter state to URL (after initial mount)
+  // Sync FROM URL params when they change externally (e.g., browser back/forward)
+  useEffect(() => {
+    const currentParamsStr = searchParams.toString();
+
+    // Skip if we just updated the URL ourselves
+    if (isUpdatingUrl.current) {
+      isUpdatingUrl.current = false;
+      prevSearchParamsRef.current = currentParamsStr;
+      return;
+    }
+
+    // Skip if params haven't actually changed
+    if (currentParamsStr === prevSearchParamsRef.current) {
+      return;
+    }
+
+    prevSearchParamsRef.current = currentParamsStr;
+
+    const urlSearch = searchParams.get('search') || '';
+    const urlStatus = searchParams.get('status');
+    const urlStatusFilters = urlStatus
+      ? urlStatus.split(',').filter(s => STATUS_CONFIG[s])
+      : [];
+
+    setSearchText(urlSearch);
+    setStatusFilters(urlStatusFilters);
+    setCurrentPage(0);
+  }, [searchParams]);
+
+  // Sync filter state TO URL (after initial mount)
   useEffect(() => {
     if (!initializedFromUrl.current) return;
 
@@ -198,8 +233,15 @@ export default function DrugsPageClient() {
       params.set('search', searchText.trim());
     }
 
-    const newUrl = params.toString() ? `?${params.toString()}` : '/drugs';
-    router.replace(newUrl, { scroll: false });
+    const newParamsStr = params.toString();
+    const newUrl = newParamsStr ? `?${newParamsStr}` : '/drugs';
+
+    // Only update if URL actually changed
+    if (newParamsStr !== prevSearchParamsRef.current) {
+      isUpdatingUrl.current = true;
+      prevSearchParamsRef.current = newParamsStr;
+      router.replace(newUrl, { scroll: false });
+    }
   }, [statusFilters, searchText, router]);
 
   // Column definitions

@@ -11,8 +11,44 @@ import { SiteHeader } from '@/components/site-header';
 import { MobileNavProvider } from '@/components/mobile-nav';
 
 export const metadata: Metadata = {
-  title: 'RxWatch.ca - Canadian Drug Shortage Intelligence',
-  description: 'Watch your medications. Get alerted. Find alternatives.',
+  title: 'RxWatch - Canadian Drug Shortage Intelligence',
+  description: 'Check Canadian drug shortages and discontinuations by name or DIN. View reports and find medication alternatives.',
+  metadataBase: new URL('https://rxwatch.ca'),
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/favicon-96x96.png', sizes: '96x96', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '180x180' },
+    ],
+  },
+  manifest: '/site.webmanifest',
+  appleWebApp: {
+    title: 'RxWatch',
+  },
+  openGraph: {
+    title: 'RxWatch - Canadian Drug Shortage Intelligence',
+    description: 'Check Canadian drug shortages and discontinuations by name or DIN. View reports and find medication alternatives.',
+    url: 'https://rxwatch.ca',
+    siteName: 'RxWatch Canada',
+    images: [
+      {
+        url: '/RxWatch-share.png',
+        width: 1200,
+        height: 630,
+        alt: 'RxWatch - Canadian Drug Shortage Intelligence',
+      },
+    ],
+    locale: 'en_CA',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'RxWatch - Canadian Drug Shortage Intelligence',
+    description: 'Check Canadian drug shortages and discontinuations by name or DIN. View reports and find medication alternatives.',
+    images: ['/RxWatch-share.png'],
+  },
 };
 
 export default function RootLayout({

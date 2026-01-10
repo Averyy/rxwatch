@@ -23,12 +23,13 @@ export async function GET(request: Request) {
       });
     }
 
-    // Check if query looks like a DIN (8 digits)
-    const isDIN = /^\d{8}$/.test(query);
+    // Check if query looks like a DIN (all digits)
+    const isFullDIN = /^\d{8}$/.test(query);
+    const isPartialDIN = /^\d{2,7}$/.test(query);
 
     // Search drugs
     let drugResults;
-    if (isDIN) {
+    if (isFullDIN) {
       // Exact DIN match
       drugResults = await db
         .select({
@@ -46,6 +47,25 @@ export async function GET(request: Request) {
         .from(drugs)
         .where(eq(drugs.din, query))
         .limit(1);
+    } else if (isPartialDIN) {
+      // Partial DIN match - search DINs starting with the query
+      drugResults = await db.execute(sql`
+        SELECT
+          din,
+          brand_name as "brandName",
+          common_name as "commonName",
+          active_ingredient as "activeIngredient",
+          strength,
+          strength_unit as "strengthUnit",
+          form,
+          company,
+          current_status as "currentStatus",
+          has_reports as "hasReports"
+        FROM drugs
+        WHERE din LIKE ${query} || '%'
+        ORDER BY has_reports DESC, din ASC
+        LIMIT ${limit}
+      `);
     } else {
       // Fuzzy search using pg_trgm
       // Lower similarity threshold for better matches on compound names
@@ -71,15 +91,15 @@ export async function GET(request: Request) {
           brand_name % ${query}
           OR common_name % ${query}
           OR active_ingredient % ${query}
-          OR brand_name ILIKE ${'%' + query + '%'}
-          OR common_name ILIKE ${'%' + query + '%'}
-          OR active_ingredient ILIKE ${'%' + query + '%'}
+          OR brand_name ILIKE '%' || ${query} || '%'
+          OR common_name ILIKE '%' || ${query} || '%'
+          OR active_ingredient ILIKE '%' || ${query} || '%'
         ORDER BY sim DESC, has_reports DESC
         LIMIT ${limit}
       `);
     }
 
-    // Search reports by report ID or DIN
+    // Search reports by report ID, DIN, or text
     let reportResults: {
       reportId: number;
       din: string | null;
@@ -89,6 +109,7 @@ export async function GET(request: Request) {
       company: string | null;
       apiUpdatedDate: Date | null;
     }[] = [];
+
     if (/^\d+$/.test(query)) {
       // Numeric query - search by report ID or DIN
       reportResults = await db
@@ -109,10 +130,32 @@ export async function GET(request: Request) {
           )
         )
         .limit(limit);
+    } else {
+      // Text query - search by brand name, common name, or company
+      reportResults = await db
+        .select({
+          reportId: reports.reportId,
+          din: reports.din,
+          brandName: reports.brandName,
+          type: reports.type,
+          status: reports.status,
+          company: reports.company,
+          apiUpdatedDate: reports.apiUpdatedDate,
+        })
+        .from(reports)
+        .where(
+          or(
+            ilike(reports.brandName, `%${query}%`),
+            ilike(reports.commonName, `%${query}%`),
+            ilike(reports.company, `%${query}%`)
+          )
+        )
+        .orderBy(sql`${reports.apiUpdatedDate} DESC`)
+        .limit(limit);
     }
 
     return NextResponse.json({
-      drugs: isDIN ? drugResults : (drugResults as any[]),
+      drugs: isFullDIN ? drugResults : (drugResults as any[]),
       reports: reportResults,
       query,
     });

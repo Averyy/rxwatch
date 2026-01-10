@@ -643,8 +643,8 @@ function buildTimelineEvents(reports: Report[]): TimelineEvent[] {
 function ReportTimeline({ reports }: { reports: Report[] }) {
   const [showAll, setShowAll] = useState(false);
   const events = buildTimelineEvents(reports);
-  const displayEvents = showAll ? events : events.slice(0, 8);
-  const hasMore = events.length > 8;
+  const displayEvents = showAll ? events : events.slice(0, 6);
+  const hasMore = events.length > 6;
 
   if (reports.length === 0) {
     return (
@@ -882,7 +882,8 @@ function AlternativesList({
 
   return (
     <motion.div
-      className="space-y-4"
+      id="alternatives"
+      className="space-y-4 scroll-mt-6"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3, delay: 0.15 }}
@@ -1144,6 +1145,20 @@ export default function DrugDetailClient({
     }
     fetchAlternatives();
   }, [drug.din]);
+
+  // Scroll to #alternatives hash after alternatives load
+  useEffect(() => {
+    if (alternatives && window.location.hash === '#alternatives') {
+      // Delay to allow animations to complete before scrolling
+      const timer = setTimeout(() => {
+        const el = document.getElementById('alternatives');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [alternatives]);
 
   // Determine if alternatives should be expanded by default
   const alternativesExpanded = drug.currentStatus !== 'available';

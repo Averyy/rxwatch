@@ -388,11 +388,18 @@ function LinkedDrugCard({ drug }: { drug: Drug }) {
       transition={{ duration: 0.3, delay: 0.1 }}
       className="space-y-3"
     >
-      <div className="space-y-1">
-        <h2 className="text-lg font-semibold">Drug Information</h2>
-        <p className="text-sm text-muted-foreground">
-          To learn more about the specific drug that is impacted and view possible alternatives, click below.
-        </p>
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <div>
+          <h2 className="text-lg font-semibold">Drug Information</h2>
+          <p className="text-sm text-muted-foreground">
+            To learn more about the specific drug that is impacted and view possible alternatives, click below.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" asChild className="shrink-0">
+          <Link href={`/drugs/${drug.din}#alternatives`}>
+            View alternatives
+          </Link>
+        </Button>
       </div>
 
       <Link

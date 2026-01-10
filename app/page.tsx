@@ -218,7 +218,7 @@ export default function Home() {
             Canadian Drug Shortage Intelligence
           </h1>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            Check if your medication is in shortage, find alternatives, and stay informed with real-time updates from Drug Shortages Canada.
+            Check Canadian drug shortages and discontinuations by name or DIN. View reports and find medication alternatives.
           </p>
           {/* Sync Status */}
           <div className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground">

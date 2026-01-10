@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db, reports } from '@/db';
 import { desc, asc, sql, eq, type SQL } from 'drizzle-orm';
+import { getCacheKey, getFromCache, setInCache } from '@/lib/api-cache';
+
+const CACHE_NAMESPACE = 'reports';
 
 /**
  * GET /api/reports
@@ -26,6 +29,19 @@ const VALID_STATUSES = ['active_confirmed', 'anticipated_shortage', 'avoided_sho
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
+    const cacheKey = getCacheKey(searchParams);
+
+    // Check cache first
+    const cached = getFromCache<{ rows: unknown[]; totalRows: number }>(CACHE_NAMESPACE, cacheKey);
+    if (cached) {
+      return NextResponse.json(cached, {
+        headers: {
+          'Cache-Control': 'public, max-age=900, stale-while-revalidate=60',
+          'X-Cache': 'HIT',
+        },
+      });
+    }
+
     const active = searchParams.get('active');
     const type = searchParams.get('type');
     const status = searchParams.get('status');
@@ -132,11 +148,19 @@ export async function GET(request: Request) {
       .orderBy(desc(reports.apiUpdatedDate))
       .limit(limit || 100000); // Default to all if no limit specified
 
-    return NextResponse.json({
+    const responseData = {
       rows: result,
       totalRows: result.length,
-    }, {
-      headers: { 'Cache-Control': 'public, max-age=900' }, // 15 min
+    };
+
+    // Store in cache
+    setInCache(CACHE_NAMESPACE, cacheKey, responseData);
+
+    return NextResponse.json(responseData, {
+      headers: {
+        'Cache-Control': 'public, max-age=900, stale-while-revalidate=60',
+        'X-Cache': 'MISS',
+      },
     });
   } catch (error) {
     console.error('Error fetching reports:', error);

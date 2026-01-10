@@ -1,113 +1,102 @@
-# RxWatch.ca
+# RxWatch Canada
 
-**Canadian Drug Shortage Intelligence Tool**
+**Canadian Drug Shortage Intelligence**
 
-Watch your medications. Get alerted. Find alternatives.
+Check Canadian drug shortages and discontinuations by name or DIN. View reports and find medication alternatives.
 
-## What is this?
+## Why This Exists
 
-RxWatch helps Canadians navigate drug shortages by combining data from official government sources:
+This is a free, open-source project to make Canadian drug shortage data more accessible. The official [Drug Shortages Canada](https://www.drugshortagescanada.ca/) website is frequently slow, occasionally goes down, and can be difficult to navigate. RxWatch provides a faster, more reliable interface to the same official data with better search, filtering, and alternative medication suggestions.
 
-- **Shortage Lookup** - Search by drug name or DIN
-- **Alternative Suggestions** - Find same-ingredient alternatives from different manufacturers
-- **Shortage Analytics** - Track trends, see which companies are late reporting
-- **Push Notifications** (iOS app) - Get alerted when YOUR specific medication's status changes
+## Features
 
-## Why RxWatch?
-
-Canada has 1,500-2,000 active drug shortages at any given time. The official source ([DrugShortagesCanada.ca](https://www.drugshortagescanada.ca)) has the data but:
-
-| Problem | RxWatch Solution |
-|---------|------------------|
-| **Slow** - API responses take 10-30+ seconds | **Fast** - Local cache, sub-second lookups |
-| **ATC-based alerts** - Track drug classes (researcher-focused) | **DIN-based alerts** - Track YOUR specific medication (patient-focused) |
-| **No alternatives** - Just raw shortage data | **Smart alternatives** - Same ingredient, different manufacturer |
-| **Technical UI** - Built for public health analysts | **Simple UI** - Built for patients and pharmacists |
-
-### Why DIN over ATC?
-
-The official site uses [ATC codes](https://www.who.int/tools/atc-ddd-toolkit/atc-classification) (WHO drug classification) for notifications - great for researchers tracking "all diabetes drugs" but useless for patients.
-
-RxWatch uses **DIN** (Drug Identification Number) - the 8-digit code on your medication bottle. One DIN = one specific product. When you add a DIN to your watchlist, you're tracking exactly what you take, not a broad category.
+- **Drug Search** - Search 57,000+ drugs by name or DIN with fuzzy matching
+- **Shortage Reports** - Browse 27,000+ shortage and discontinuation reports
+- **Alternatives** - Find same-ingredient generics or same-class therapeutics
+- **Analytics** - Track trends, late reporters, root causes
+- **Real-time Sync** - Data updated every 15 minutes from official sources
 
 ## Data Sources
 
-| Source | Data |
-|--------|------|
-| [Drug Shortages Canada API](https://www.drugshortagescanada.ca/) | Shortage reports, status, expected resolution dates |
-| [Health Canada Drug Product Database](https://www.canada.ca/en/health-canada/services/drugs-health-products/drug-products/drug-product-database.html) | Drug details, ingredients, manufacturers, ATC codes |
+| Source | Data | Update Frequency |
+|--------|------|------------------|
+| [Drug Shortages Canada](https://www.drugshortagescanada.ca/) | Shortage reports, discontinuations, status updates | Every 15 min |
+| [Health Canada DPD](https://health-products.canada.ca/api/documentation/dpd-documentation-en.html) | Drug catalog, ingredients, manufacturers, ATC codes | Daily |
 
 ## Tech Stack
 
 - **Next.js 15** (App Router) + React 19
-- **Tailwind CSS** + **shadcn/ui** + **Framer Motion**
-- **AG Grid Community** - data tables
-- **Recharts** - charts (via shadcn/ui)
+- **Tailwind CSS** + **shadcn/ui**
+- **AG Grid** - Data tables
+- **Recharts** - Charts
 - **PostgreSQL** + Drizzle ORM
-- **next-intl** - EN/FR
 
-See [CLAUDE.md](CLAUDE.md) for full technical documentation.
-
-## Development
+## Quick Start
 
 ```bash
-# Start PostgreSQL
-yarn db:start
+# 1. Clone and install
+git clone https://github.com/Averyy/rxwatch.git
+cd rxwatch
+yarn install
 
-# Push schema
+# 2. Start PostgreSQL
+docker compose up -d
+
+# 3. Copy environment file
+cp .env.example .env.local
+# Edit .env.local with your DSC credentials (free account at drugshortagescanada.ca)
+
+# 4. Set up database
 yarn db:push
+yarn db:restore db/dumps/rxwatch-latest.sql  # If you have a dump
+# OR run full backfill (slow - DSC API is rate-limited):
+# yarn backfill && yarn sync-dpd:backfill
 
-# Run dev server
+# 5. Run dev server
 yarn dev
 ```
 
-## Status
+See [CLAUDE.md](CLAUDE.md) for detailed technical documentation.
 
-**Pre-MVP** - Active development
+## Production Deployment (VPS)
 
-### Progress Tracker
+Deploys automatically via GitHub Actions on push to `main`.
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| **Data Pipeline** | | |
-| Database schema | ✅ Done | Drizzle schema with drugs + reports tables |
-| DSC history fetch | ✅ Done | 27,823 reports fetched to history/ |
-| DSC backfill script | ✅ Done | Imports history to database |
-| DPD sync script | ✅ Done | 57,512 drugs synced with caching |
-| DSC poll script | ✅ Done | Cron for ongoing updates |
-| **API Routes** | | |
-| /api/drugs | ✅ Done | Drug list with filters |
-| /api/reports | ✅ Done | Report list with date range filter |
-| /api/health | ✅ Done | Health check + last sync time |
-| /api/search | ✅ Done | Global fuzzy search with pg_trgm |
-| /api/drugs/[din]/alternatives | ✅ Done | Same ingredient + same therapeutic class |
-| /api/stats | ✅ Done | Aggregate statistics |
-| **Pages** | | |
-| Homepage | ✅ Done | Stats cards, search, critical shortages, recent discontinuations |
-| /drugs | ✅ Done | AG Grid with status filters, pagination |
-| /drugs/[din] | ✅ Done | Drug detail, timeline, alternatives |
-| /reports | ✅ Done | AG Grid with status/tier3/date filters |
-| /reports/[id] | Not started | Report detail page |
-| /stats | Not started | Analytics dashboard |
-| /about | Not started | Static content |
-| **Components** | | |
-| Layout/sidebar | ✅ Done | Navigation with disclaimer |
-| Live sync indicator | ✅ Done | Header shows last sync time |
-| Data grids | ✅ Done | AG Grid with custom pagination |
-| Drug detail page | ✅ Done | Hero, timeline, alternatives sections |
-| Skeleton loaders | ✅ Done | Loading states for all pages |
-| Search | Not started | Global search bar component |
-| Charts | Not started | Recharts visualizations |
+**One-time VPS setup:**
+```bash
+# Clone repo
+git clone https://github.com/Averyy/rxwatch.git
+cd rxwatch
 
-**Database stats (as of Jan 8, 2026):**
-- 57,512 drugs from Health Canada DPD
-- 27,827 shortage/discontinuation reports from DSC
-- 8,778 drugs with shortage history
+# Configure environment
+cp .env.example .env.local
+# Edit .env.local with production credentials
+
+# Set up cron jobs
+crontab -e
+# Add:
+# 0,15,30,45 * * * * cd /root/rxwatch && yarn sync-dsc >> /var/log/rxwatch-dsc.log 2>&1
+# 0 4 * * * cd /root/rxwatch && yarn sync-dpd >> /var/log/rxwatch-dpd.log 2>&1
+```
+
+Add to your Caddy config:
+```
+rxwatch.ca {
+    reverse_proxy localhost:5000
+}
+```
+
+Then push to `main` - GitHub Actions handles the rest (including first-run database seeding from cached data).
+
+**GitHub Secrets required:**
+- `VPS_HOST` - Server IP/hostname
+- `VPS_USERNAME` - SSH user
+- `VPS_SSH_KEY` - Private SSH key
 
 ## Disclaimer
 
-This tool is for informational purposes only. It is not medical advice. Always consult your pharmacist or doctor before making any changes to your medications. Alternative suggestions require verification by a healthcare professional.
+This tool is for informational purposes only. **This is not medical advice.** Always consult your pharmacist or doctor before making any changes to your medications. Alternative suggestions require verification by a healthcare professional.
 
 ## License
 
-See [LICENSE](LICENSE) file.
+MIT - See [LICENSE](LICENSE)

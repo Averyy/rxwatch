@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db, drugs } from '@/db';
 import { asc, sql, type SQL } from 'drizzle-orm';
+import { getCacheKey, getFromCache, setInCache } from '@/lib/api-cache';
 
 // Input validation constants
 const MAX_PARAM_LENGTH = 100;
 const ATC_PATTERN = /^[A-Z0-9]{1,7}$/i;
+const CACHE_NAMESPACE = 'drugs';
 
 /**
  * GET /api/drugs
@@ -24,6 +26,19 @@ const VALID_STATUSES = ['available', 'in_shortage', 'anticipated', 'discontinued
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
+    const cacheKey = getCacheKey(searchParams);
+
+    // Check cache first
+    const cached = getFromCache<{ rows: unknown[]; totalRows: number }>(CACHE_NAMESPACE, cacheKey);
+    if (cached) {
+      return NextResponse.json(cached, {
+        headers: {
+          'Cache-Control': 'public, max-age=900, stale-while-revalidate=60',
+          'X-Cache': 'HIT',
+        },
+      });
+    }
+
     const hasReports = searchParams.get('hasReports');
     const status = searchParams.get('status');
     const company = searchParams.get('company');
@@ -93,11 +108,19 @@ export async function GET(request: Request) {
       .where(conditions.length > 0 ? sql.join(conditions, sql` AND `) : undefined)
       .orderBy(asc(drugs.brandName));
 
-    return NextResponse.json({
+    const responseData = {
       rows: result,
       totalRows: result.length,
-    }, {
-      headers: { 'Cache-Control': 'public, max-age=900' }, // 15 min
+    };
+
+    // Store in cache
+    setInCache(CACHE_NAMESPACE, cacheKey, responseData);
+
+    return NextResponse.json(responseData, {
+      headers: {
+        'Cache-Control': 'public, max-age=900, stale-while-revalidate=60',
+        'X-Cache': 'MISS',
+      },
     });
   } catch (error) {
     console.error('Error fetching drugs:', {
