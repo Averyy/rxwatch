@@ -17,6 +17,7 @@ import {
   Scale,
   AlertTriangle,
   Github,
+  ExternalLink,
 } from "lucide-react"
 
 import {
@@ -147,9 +148,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     tooltip={item.title}
                   >
                     {item.external ? (
-                      <a href={item.url} target="_blank" rel="noopener noreferrer">
+                      <a href={item.url} target="_blank" rel="noopener noreferrer" className="group/ext">
                         <item.icon />
-                        <span>{item.title}</span>
+                        <span className="flex items-center gap-1">
+                          {item.title}
+                          <ExternalLink className="!h-3 !w-3 text-muted-foreground group-hover/ext:text-primary" />
+                        </span>
                       </a>
                     ) : (
                       <Link href={item.url}>

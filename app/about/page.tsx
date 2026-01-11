@@ -294,7 +294,7 @@ export default function AboutPage() {
           </p>
           <div className="flex flex-wrap gap-3">
             <a
-              href="https://github.com/anthropics/claude-code/issues"
+              href="https://github.com/Averyy/rxwatch/issues"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -303,7 +303,7 @@ export default function AboutPage() {
                 Report an Issue
               </Button>
             </a>
-            <a href="mailto:feedback@rxwatch.ca">
+            <a href="mailto:info@rxwatch.ca">
               <Button variant="outline" className="gap-2">
                 <Mail className="h-4 w-4" />
                 Send Feedback

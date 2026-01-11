@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Search, Loader2, AlertCircle, Pill, FileText } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -95,18 +95,25 @@ export function DrugSearch({
   className,
 }: DrugSearchProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [drugResults, setDrugResults] = useState<DrugResult[]>([]);
   const [reportResults, setReportResults] = useState<ReportResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [hasSearched, setHasSearched] = useState(false);
 
   // Calculate total results for keyboard navigation
   const totalResults = drugResults.length + reportResults.length;
+
+  // Reset navigating state when route changes
+  useEffect(() => {
+    setIsNavigating(false);
+  }, [pathname]);
 
   // Global keyboard shortcut (Cmd+K / Ctrl+K)
   useEffect(() => {
@@ -174,6 +181,7 @@ export function DrugSearch({
     setShowResults(false);
     setSearchQuery('');
     setSelectedIndex(-1);
+    setIsNavigating(true);
 
     if (/^\d{8}$/.test(trimmed)) {
       // Exact DIN - go to drug detail page
@@ -193,6 +201,7 @@ export function DrugSearch({
       setShowResults(false);
       setSearchQuery('');
       setSelectedIndex(-1);
+      setIsNavigating(true);
 
       if (selectedIndex < drugResults.length) {
         // It's a drug result
@@ -212,6 +221,7 @@ export function DrugSearch({
     setShowResults(false);
     setSearchQuery('');
     setSelectedIndex(-1);
+    setIsNavigating(true);
     router.push(`/drugs/${din}`);
   }, [router]);
 
@@ -220,6 +230,7 @@ export function DrugSearch({
     setShowResults(false);
     setSearchQuery('');
     setSelectedIndex(-1);
+    setIsNavigating(true);
     router.push(`/reports/${reportId}`);
   }, [router]);
 
@@ -276,11 +287,12 @@ export function DrugSearch({
           <Input
             ref={inputRef}
             type="text"
-            placeholder={placeholder}
+            placeholder={isNavigating ? 'Loading...' : placeholder}
             className={cn(
               isHero
                 ? 'pl-12 pr-14 h-14 text-lg rounded-xl shadow-sm'
-                : 'pl-8 pr-14 h-9'
+                : 'pl-8 pr-14 h-9',
+              isNavigating && 'opacity-70'
             )}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -291,6 +303,7 @@ export function DrugSearch({
             }}
             onBlur={() => setTimeout(() => setShowResults(false), 200)}
             onKeyDown={handleKeyDown}
+            disabled={isNavigating}
             aria-expanded={showResults}
             aria-haspopup="listbox"
             aria-controls="search-results"
@@ -301,7 +314,7 @@ export function DrugSearch({
             'absolute top-1/2 -translate-y-1/2 pointer-events-none',
             isHero ? 'right-4' : 'right-2.5'
           )}>
-            {isSearching ? (
+            {isSearching || isNavigating ? (
               <Loader2 className={cn(
                 'animate-spin text-muted-foreground',
                 isHero ? 'h-5 w-5' : 'h-4 w-4'

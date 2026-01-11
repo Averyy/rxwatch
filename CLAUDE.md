@@ -4,9 +4,7 @@ Canadian drug shortage lookup + notification tool. Combines Drug Shortages Canad
 
 ## What's Not Built Yet
 - [ ] DrugSearch autocomplete dropdown styling
-- [ ] `/about` static page
 - [ ] i18n (EN/FR)
-- [ ] iOS app
 
 ## Database Stats
 | Data | Count |
