@@ -2,22 +2,23 @@ import { MetadataRoute } from 'next'
 import { db } from '@/db'
 import { drugs, reports } from '@/db/schema'
 import { sql } from 'drizzle-orm'
+import { locales } from '@/i18n/config'
 
 // Force dynamic generation - sitemap needs live DB data
 export const dynamic = 'force-dynamic'
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://rxwatch.ca'
-const URLS_PER_SITEMAP = 40000 // Stay under 50k limit
+const URLS_PER_SITEMAP = 20000 // Reduced to accommodate both locales (2x URLs)
 
 // Static pages that don't change often
 const staticPages = [
-  { url: '', changeFrequency: 'daily' as const, priority: 1.0 },
-  { url: '/drugs', changeFrequency: 'hourly' as const, priority: 0.9 },
-  { url: '/reports', changeFrequency: 'hourly' as const, priority: 0.9 },
-  { url: '/stats', changeFrequency: 'daily' as const, priority: 0.7 },
-  { url: '/about', changeFrequency: 'monthly' as const, priority: 0.5 },
-  { url: '/privacy', changeFrequency: 'yearly' as const, priority: 0.3 },
-  { url: '/terms', changeFrequency: 'yearly' as const, priority: 0.3 },
+  { path: '', changeFrequency: 'daily' as const, priority: 1.0 },
+  { path: '/drugs', changeFrequency: 'hourly' as const, priority: 0.9 },
+  { path: '/reports', changeFrequency: 'hourly' as const, priority: 0.9 },
+  { path: '/stats', changeFrequency: 'daily' as const, priority: 0.7 },
+  { path: '/about', changeFrequency: 'monthly' as const, priority: 0.5 },
+  { path: '/privacy', changeFrequency: 'yearly' as const, priority: 0.3 },
+  { path: '/terms', changeFrequency: 'yearly' as const, priority: 0.3 },
 ]
 
 async function getCounts() {
@@ -42,9 +43,9 @@ async function getCounts() {
 
 /**
  * Generate sitemap IDs for all content
- * ID 0: Static pages
- * ID 1-N: Drugs (paginated)
- * ID N+1-M: Reports (paginated)
+ * ID 0: Static pages (both locales)
+ * ID 1-N: Drugs (paginated, both locales)
+ * ID N+1-M: Reports (paginated, both locales)
  */
 export async function generateSitemaps() {
   const counts = await getCounts()
@@ -58,6 +59,15 @@ export async function generateSitemaps() {
   return Array.from({ length: totalSitemaps }, (_, i) => ({ id: i }))
 }
 
+// Helper to create alternates for a path
+function createAlternates(path: string) {
+  return {
+    languages: Object.fromEntries(
+      locales.map((locale) => [locale, `${baseUrl}/${locale}${path}`])
+    ),
+  }
+}
+
 export default async function sitemap({
   id,
 }: {
@@ -68,14 +78,23 @@ export default async function sitemap({
   const counts = await getCounts()
   const drugSitemaps = Math.ceil(counts.drugs / URLS_PER_SITEMAP)
 
-  // ID 0: Static pages
+  // ID 0: Static pages (generate for all locales)
   if (sitemapId === 0) {
-    return staticPages.map((page) => ({
-      url: `${baseUrl}${page.url}`,
-      lastModified: new Date(),
-      changeFrequency: page.changeFrequency,
-      priority: page.priority,
-    }))
+    const urls: MetadataRoute.Sitemap = []
+
+    for (const page of staticPages) {
+      for (const locale of locales) {
+        urls.push({
+          url: `${baseUrl}/${locale}${page.path}`,
+          lastModified: new Date(),
+          changeFrequency: page.changeFrequency,
+          priority: page.priority,
+          alternates: createAlternates(page.path),
+        })
+      }
+    }
+
+    return urls
   }
 
   // IDs 1 to drugSitemaps: Drugs
@@ -91,12 +110,22 @@ export default async function sitemap({
       .limit(URLS_PER_SITEMAP)
       .offset(offset)
 
-    return drugData.map((drug) => ({
-      url: `${baseUrl}/drugs/${drug.din}`,
-      lastModified: drug.updatedAt || new Date(),
-      changeFrequency: 'daily' as const,
-      priority: 0.8,
-    }))
+    const urls: MetadataRoute.Sitemap = []
+
+    for (const drug of drugData) {
+      const path = `/drugs/${drug.din}`
+      for (const locale of locales) {
+        urls.push({
+          url: `${baseUrl}/${locale}${path}`,
+          lastModified: drug.updatedAt || new Date(),
+          changeFrequency: 'daily' as const,
+          priority: 0.8,
+          alternates: createAlternates(path),
+        })
+      }
+    }
+
+    return urls
   }
 
   // Remaining IDs: Reports
@@ -112,10 +141,20 @@ export default async function sitemap({
     .limit(URLS_PER_SITEMAP)
     .offset(offset)
 
-  return reportData.map((report) => ({
-    url: `${baseUrl}/reports/${report.reportId}`,
-    lastModified: report.updatedAt || new Date(),
-    changeFrequency: 'daily' as const,
-    priority: 0.7,
-  }))
+  const urls: MetadataRoute.Sitemap = []
+
+  for (const report of reportData) {
+    const path = `/reports/${report.reportId}`
+    for (const locale of locales) {
+      urls.push({
+        url: `${baseUrl}/${locale}${path}`,
+        lastModified: report.updatedAt || new Date(),
+        changeFrequency: 'daily' as const,
+        priority: 0.7,
+        alternates: createAlternates(path),
+      })
+    }
+  }
+
+  return urls
 }

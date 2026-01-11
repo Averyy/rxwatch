@@ -1,12 +1,27 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import createIntlMiddleware from 'next-intl/middleware';
+import { locales, defaultLocale } from './i18n/config';
 import { rateLimit } from './lib/rate-limit';
 
+const intlMiddleware = createIntlMiddleware({
+  locales,
+  defaultLocale,
+  localeDetection: true,
+});
+
 export async function middleware(request: NextRequest) {
-  // Only rate limit API routes
-  if (request.nextUrl.pathname.startsWith('/api/')) {
+  const { pathname } = request.nextUrl;
+
+  // Skip sitemap routes (no locale)
+  if (pathname.startsWith('/sitemap') || pathname === '/robots.txt') {
+    return NextResponse.next();
+  }
+
+  // API routes: apply rate limiting only (no locale)
+  if (pathname.startsWith('/api/')) {
     // Skip health check endpoint
-    if (request.nextUrl.pathname === '/api/health') {
+    if (pathname === '/api/health') {
       return NextResponse.next();
     }
 
@@ -22,11 +37,17 @@ export async function middleware(request: NextRequest) {
         { status: 429 }
       );
     }
+
+    return NextResponse.next();
   }
 
-  return NextResponse.next();
+  // All other routes: apply i18n middleware
+  return intlMiddleware(request);
 }
 
 export const config = {
-  matcher: '/api/:path*',
+  matcher: [
+    // Match all paths except static files and api
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+  ],
 };

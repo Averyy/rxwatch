@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
 import { Search, Loader2, AlertCircle, Pill, FileText } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -38,64 +39,69 @@ interface DrugSearchProps {
 }
 
 // Status badge configuration for drugs
-const drugStatusConfig: Record<string, { label: string; className: string }> = {
+const drugStatusConfig: Record<string, { labelKey: string; className: string }> = {
   in_shortage: {
-    label: 'Shortage',
+    labelKey: 'in_shortage',
     className: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
   },
   anticipated: {
-    label: 'Anticipated',
+    labelKey: 'anticipated',
     className: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
   },
   to_be_discontinued: {
-    label: 'Pending',
+    labelKey: 'to_be_discontinued',
     className: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20',
   },
   discontinued: {
-    label: 'Discontinued',
+    labelKey: 'discontinued',
     className: 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-500/20',
   },
 };
 
 // Status badge configuration for reports
-const reportStatusConfig: Record<string, { label: string; className: string }> = {
+const reportStatusConfig: Record<string, { labelKey: string; className: string }> = {
   active_confirmed: {
-    label: 'Active',
+    labelKey: 'active_confirmed',
     className: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
   },
   anticipated_shortage: {
-    label: 'Anticipated',
+    labelKey: 'anticipated_shortage',
     className: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
   },
   resolved: {
-    label: 'Resolved',
+    labelKey: 'resolved',
     className: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
   },
   avoided_shortage: {
-    label: 'Avoided',
+    labelKey: 'avoided_shortage',
     className: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
   },
   to_be_discontinued: {
-    label: 'Pending',
+    labelKey: 'to_be_discontinued',
     className: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20',
   },
   discontinued: {
-    label: 'Discontinued',
+    labelKey: 'discontinued',
     className: 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-500/20',
   },
   reversed: {
-    label: 'Reversed',
+    labelKey: 'reversed',
     className: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
   },
 };
 
 export function DrugSearch({
   variant = 'header',
-  placeholder = 'Search by drug name, DIN, or ingredient...',
+  placeholder,
   className,
 }: DrugSearchProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const locale = useLocale();
+  const t = useTranslations('Search');
+  const tStatus = useTranslations('Status');
+  const tReport = useTranslations('ReportDetail');
+
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -109,6 +115,9 @@ export function DrugSearch({
 
   // Calculate total results for keyboard navigation
   const totalResults = drugResults.length + reportResults.length;
+
+  // Use provided placeholder or default from translations
+  const searchPlaceholder = placeholder || t('placeholder');
 
   // Reset navigating state when route changes
   useEffect(() => {
@@ -185,12 +194,12 @@ export function DrugSearch({
 
     if (/^\d{8}$/.test(trimmed)) {
       // Exact DIN - go to drug detail page
-      router.push(`/drugs/${trimmed}`);
+      router.push(`/${locale}/drugs/${trimmed}`);
     } else {
       // Text search - go to drugs list with filter
-      router.push(`/drugs?search=${encodeURIComponent(trimmed)}`);
+      router.push(`/${locale}/drugs?search=${encodeURIComponent(trimmed)}`);
     }
-  }, [router]);
+  }, [router, locale]);
 
   // Handle search submit
   const handleSearchSubmit = useCallback((e: React.FormEvent) => {
@@ -205,16 +214,16 @@ export function DrugSearch({
 
       if (selectedIndex < drugResults.length) {
         // It's a drug result
-        router.push(`/drugs/${drugResults[selectedIndex].din}`);
+        router.push(`/${locale}/drugs/${drugResults[selectedIndex].din}`);
       } else {
         // It's a report result
         const reportIndex = selectedIndex - drugResults.length;
-        router.push(`/reports/${reportResults[reportIndex].reportId}`);
+        router.push(`/${locale}/reports/${reportResults[reportIndex].reportId}`);
       }
     } else if (searchQuery.trim()) {
       navigateToResults(searchQuery);
     }
-  }, [searchQuery, router, selectedIndex, drugResults, reportResults, totalResults, navigateToResults]);
+  }, [searchQuery, router, locale, selectedIndex, drugResults, reportResults, totalResults, navigateToResults]);
 
   // Handle clicking a drug result
   const handleDrugClick = useCallback((din: string) => {
@@ -222,8 +231,8 @@ export function DrugSearch({
     setSearchQuery('');
     setSelectedIndex(-1);
     setIsNavigating(true);
-    router.push(`/drugs/${din}`);
-  }, [router]);
+    router.push(`/${locale}/drugs/${din}`);
+  }, [router, locale]);
 
   // Handle clicking a report result
   const handleReportClick = useCallback((reportId: number) => {
@@ -231,8 +240,8 @@ export function DrugSearch({
     setSearchQuery('');
     setSelectedIndex(-1);
     setIsNavigating(true);
-    router.push(`/reports/${reportId}`);
-  }, [router]);
+    router.push(`/${locale}/reports/${reportId}`);
+  }, [router, locale]);
 
   // Handle keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -287,7 +296,7 @@ export function DrugSearch({
           <Input
             ref={inputRef}
             type="text"
-            placeholder={isNavigating ? 'Loading...' : placeholder}
+            placeholder={isNavigating ? t('loading') : searchPlaceholder}
             className={cn(
               isHero
                 ? 'pl-12 pr-14 h-14 text-lg rounded-xl shadow-sm'
@@ -354,7 +363,7 @@ export function DrugSearch({
                       isHero ? 'px-4 py-2 text-xs' : 'px-3 py-1.5 text-[10px]'
                     )}>
                       <Pill className="h-3 w-3" />
-                      <span className="font-medium uppercase tracking-wider">Drugs</span>
+                      <span className="font-medium uppercase tracking-wider">{t('drugs')}</span>
                     </div>
                     {drugResults.map((result, index) => (
                       <button
@@ -392,7 +401,7 @@ export function DrugSearch({
                               !isHero && 'text-xs'
                             )}
                           >
-                            {drugStatusConfig[result.currentStatus].label}
+                            {tStatus(drugStatusConfig[result.currentStatus].labelKey)}
                           </Badge>
                         )}
                       </button>
@@ -408,7 +417,7 @@ export function DrugSearch({
                       isHero ? 'px-4 py-2 text-xs' : 'px-3 py-1.5 text-[10px]'
                     )}>
                       <FileText className="h-3 w-3" />
-                      <span className="font-medium uppercase tracking-wider">Reports</span>
+                      <span className="font-medium uppercase tracking-wider">{t('reports')}</span>
                     </div>
                     {reportResults.map((result, index) => {
                       const globalIndex = drugResults.length + index;
@@ -432,11 +441,11 @@ export function DrugSearch({
                         >
                           <div className="min-w-0 flex-1">
                             <div className={cn('font-medium truncate', !isHero && 'text-sm')}>
-                              {result.brandName || `Report #${result.reportId}`}
+                              {result.brandName || `${tReport('reportId')} #${result.reportId}`}
                             </div>
                             <div className={cn('text-muted-foreground truncate', isHero ? 'text-sm' : 'text-xs')}>
                               #{result.reportId} {result.din && `• DIN: ${result.din}`}
-                              {result.type && ` • ${result.type === 'shortage' ? 'Shortage' : 'Discontinuation'}`}
+                              {result.type && ` • ${result.type === 'shortage' ? tReport('shortage') : tReport('discontinuation')}`}
                             </div>
                           </div>
                           {result.status && reportStatusConfig[result.status] && (
@@ -448,7 +457,7 @@ export function DrugSearch({
                                 !isHero && 'text-xs'
                               )}
                             >
-                              {reportStatusConfig[result.status].label}
+                              {tStatus(reportStatusConfig[result.status].labelKey)}
                             </Badge>
                           )}
                         </button>
@@ -461,9 +470,9 @@ export function DrugSearch({
                 'bg-muted/30 text-muted-foreground border-t',
                 isHero ? 'px-4 py-2 text-sm' : 'px-3 py-1.5 text-xs'
               )}>
-                <span className="opacity-70">Press</span>{' '}
+                <span className="opacity-70">{t('pressEnterHint')}</span>{' '}
                 <kbd className="px-1.5 py-0.5 bg-muted rounded text-[0.7em] font-mono">Enter</kbd>{' '}
-                <span className="opacity-70">to see all results</span>
+                <span className="opacity-70">{t('toSeeAllResults')}</span>
               </div>
             </>
           ) : hasSearched && !isSearching ? (
@@ -474,10 +483,10 @@ export function DrugSearch({
             )}>
               <AlertCircle className={cn('mb-2', isHero ? 'h-8 w-8' : 'h-6 w-6')} />
               <p className={cn('font-medium', isHero ? 'text-base' : 'text-sm')}>
-                No results found
+                {t('noResults')}
               </p>
               <p className={cn('mt-1', isHero ? 'text-sm' : 'text-xs')}>
-                Try a different drug name, DIN, or ingredient
+                {t('tryDifferent')}
               </p>
             </div>
           ) : null}

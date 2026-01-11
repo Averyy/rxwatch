@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useTranslations, useLocale } from 'next-intl';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   AlertTriangle,
@@ -224,11 +225,11 @@ const ALT_STATUS_CONFIG: Record<string, { label: string; className: string; dotC
 // UTILITY FUNCTIONS
 // ===========================================
 
-function formatDate(dateStr: string | null): string {
+function formatDate(dateStr: string | null, locale: string): string {
   if (!dateStr) return '';
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('en-CA', {
+  return date.toLocaleDateString(locale === 'fr' ? 'fr-CA' : 'en-CA', {
     year: 'numeric',
     month: 'short',
     day: 'numeric'
@@ -247,7 +248,7 @@ function getActiveReport(reports: Report[]): Report | null {
   return reports.find(r => activeStatuses.includes(r.status)) || null;
 }
 
-function calculateDuration(startDate: string | null, endDate: string | null): string {
+function calculateDuration(startDate: string | null, endDate: string | null, t: (key: string, params?: Record<string, string | number | Date>) => string): string {
   if (!startDate) return '';
   const start = new Date(startDate);
   const end = endDate ? new Date(endDate) : new Date();
@@ -256,12 +257,12 @@ function calculateDuration(startDate: string | null, endDate: string | null): st
   const diffMs = end.getTime() - start.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffDays < 1) return 'Less than a day';
-  if (diffDays === 1) return '1 day';
-  if (diffDays < 30) return `${diffDays} days`;
-  if (diffDays < 60) return '1 month';
-  if (diffDays < 365) return `${Math.floor(diffDays / 30)} months`;
-  return `${Math.floor(diffDays / 365)} years`;
+  if (diffDays < 1) return t('lessThanADay');
+  if (diffDays === 1) return t('oneDay');
+  if (diffDays < 30) return t('daysCount', { count: diffDays });
+  if (diffDays < 60) return t('oneMonth');
+  if (diffDays < 365) return t('monthsCount', { count: Math.floor(diffDays / 30) });
+  return t('yearsCount', { count: Math.floor(diffDays / 365) });
 }
 
 // ===========================================
@@ -271,13 +272,22 @@ function calculateDuration(startDate: string | null, endDate: string | null): st
 function DrugHeader({
   drug,
   activeReport,
+  t,
+  tStatus,
+  locale,
 }: {
   drug: Drug;
   activeReport: Report | null;
+  t: (key: string, params?: Record<string, string | number | Date>) => string;
+  tStatus: (key: string) => string;
+  locale: string;
 }) {
   const status = drug.currentStatus || 'available';
   const config = DRUG_STATUS_CONFIG[status] || DRUG_STATUS_CONFIG.available;
   const StatusIcon = config.icon;
+
+  // Get translated status label
+  const statusLabel = tStatus(status);
 
   const displayName = drug.commonName || drug.brandName || `DIN ${drug.din}`;
   const strengthDisplay = drug.strength
@@ -330,17 +340,17 @@ function DrugHeader({
         <div className="flex flex-col items-end gap-2 shrink-0">
           <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold ${config.className}`}>
             <StatusIcon className="h-4 w-4" />
-            {config.label}
+            {statusLabel}
           </span>
           {activeReport?.tier3 && (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-600 text-white">
               <ShieldAlert className="h-3.5 w-3.5" />
-              Tier 3 Critical
+              {t('tier3Critical')}
             </span>
           )}
           {activeReport?.lateSubmission && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-              Late Submission
+              {t('lateSubmission')}
             </span>
           )}
         </div>
@@ -353,18 +363,19 @@ function DrugHeader({
           <div className="rounded-lg bg-black/10 dark:bg-black/30 p-3.5 space-y-1.5">
             <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium">
               {activeReport.type === 'discontinuation'
-                ? (activeReport.status === 'to_be_discontinued' ? 'Planned Discontinuation' : 'Discontinued')
+                ? (activeReport.status === 'to_be_discontinued' ? t('plannedDiscontinuation') : t('discontinuationComplete'))
                 : activeReport.status === 'anticipated_shortage'
-                  ? 'Expected Start'
-                  : 'Started'}
+                  ? t('expectedStart')
+                  : t('started')}
             </p>
             <p className="text-sm font-medium flex items-center gap-1.5">
               <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
               {formatDate(
                 activeReport.type === 'discontinuation'
                   ? (activeReport.discontinuationDate || activeReport.anticipatedDiscontinuationDate)
-                  : (activeReport.actualStartDate || activeReport.anticipatedStartDate)
-              ) || 'Not specified'}
+                  : (activeReport.actualStartDate || activeReport.anticipatedStartDate),
+                locale
+              ) || t('notSpecified')}
             </p>
           </div>
 
@@ -379,11 +390,11 @@ function DrugHeader({
               return (
                 <div className="rounded-lg bg-black/10 dark:bg-black/30 p-3.5 space-y-1.5">
                   <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium">
-                    Expected Resolution
+                    {t('expectedResolution')}
                   </p>
                   <p className="text-sm font-medium flex items-center gap-1.5">
                     <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                    {formatDate(activeReport.estimatedEndDate)}
+                    {formatDate(activeReport.estimatedEndDate, locale)}
                   </p>
                 </div>
               );
@@ -394,11 +405,11 @@ function DrugHeader({
               return (
                 <div className="rounded-lg bg-black/10 dark:bg-black/30 p-3.5 space-y-1.5">
                   <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium">
-                    Duration
+                    {t('duration')}
                   </p>
                   <p className="text-sm font-medium flex items-center gap-1.5">
                     <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                    {calculateDuration(startDateStr, null)}
+                    {calculateDuration(startDateStr, null, t)}
                   </p>
                 </div>
               );
@@ -408,11 +419,11 @@ function DrugHeader({
             return (
               <div className="rounded-lg bg-black/10 dark:bg-black/30 p-3.5 space-y-1.5">
                 <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium">
-                  Expected Resolution
+                  {t('expectedResolution')}
                 </p>
                 <p className="text-sm font-medium flex items-center gap-1.5">
                   <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                  Unknown
+                  {t('unknown')}
                 </p>
               </div>
             );
@@ -421,7 +432,7 @@ function DrugHeader({
           {/* Reason */}
           {activeReport.reasonEn && (
             <div className="rounded-lg bg-black/10 dark:bg-black/30 p-3.5 space-y-1.5">
-              <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium">Reason</p>
+              <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium">{t('reason')}</p>
               <p className="text-sm font-medium">{activeReport.reasonEn}</p>
             </div>
           )}
@@ -486,7 +497,7 @@ const EVENT_TYPE_CONFIG: Record<string, { label: string; className: string; dotC
   },
 };
 
-function buildTimelineEvents(reports: Report[]): TimelineEvent[] {
+function buildTimelineEvents(reports: Report[], t: (key: string, params?: Record<string, string | number | Date>) => string): TimelineEvent[] {
   const events: TimelineEvent[] = [];
 
   for (const report of reports) {
@@ -640,11 +651,33 @@ function buildTimelineEvents(reports: Report[]): TimelineEvent[] {
 // REPORT TIMELINE COMPONENT (Event-based)
 // ===========================================
 
-function ReportTimeline({ reports }: { reports: Report[] }) {
+function ReportTimeline({
+  reports,
+  t,
+  locale
+}: {
+  reports: Report[];
+  t: (key: string, params?: Record<string, string | number | Date>) => string;
+  locale: string;
+}) {
   const [showAll, setShowAll] = useState(false);
-  const events = buildTimelineEvents(reports);
+  const events = buildTimelineEvents(reports, t);
   const displayEvents = showAll ? events : events.slice(0, 6);
   const hasMore = events.length > 6;
+
+  // Map event types to translation keys
+  const getEventLabel = (type: string) => {
+    const labelMap: Record<string, string> = {
+      shortage_started: t('shortageStarted'),
+      shortage_resolved: t('shortageResolved'),
+      shortage_anticipated: t('anticipatedShortage'),
+      avoided: t('shortageAvoided'),
+      discontinued: t('discontinuationComplete'),
+      to_be_discontinued: t('toBeDiscontinued'),
+      reversed: t('reversal'),
+    };
+    return labelMap[type] || type;
+  };
 
   if (reports.length === 0) {
     return (
@@ -656,8 +689,8 @@ function ReportTimeline({ reports }: { reports: Report[] }) {
       >
         <div className="text-center py-4 text-muted-foreground">
           <CheckCircle className="h-10 w-10 mx-auto mb-3 text-emerald-500" />
-          <p className="font-medium">No shortage or discontinuation reports</p>
-          <p className="text-sm mt-1">This drug has no reported issues in our database.</p>
+          <p className="font-medium">{t('noShortageReports')}</p>
+          <p className="text-sm mt-1">{t('noReportedIssues')}</p>
         </div>
       </motion.div>
     );
@@ -670,7 +703,7 @@ function ReportTimeline({ reports }: { reports: Report[] }) {
       transition={{ duration: 0.3, delay: 0.1 }}
       className="space-y-3"
     >
-      <h2 className="text-lg font-semibold">Timeline ({events.length} events)</h2>
+      <h2 className="text-lg font-semibold">{t('timeline')} ({t('events', { count: events.length })})</h2>
 
       <div className="relative">
         {/* Timeline events */}
@@ -696,7 +729,7 @@ function ReportTimeline({ reports }: { reports: Report[] }) {
 
                 {/* Event content */}
                 <Link
-                  href={`/reports/${event.reportId}`}
+                  href={`/${locale}/reports/${event.reportId}`}
                   className="block p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors group"
                 >
                   <div className="flex items-center justify-between gap-3">
@@ -704,21 +737,21 @@ function ReportTimeline({ reports }: { reports: Report[] }) {
                       <div className="flex items-center gap-2 flex-wrap">
                         {/* Event type tag first */}
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${config.className}`}>
-                          {config.label}
+                          {getEventLabel(event.type)}
                         </span>
                         {/* Date */}
                         <span className="text-sm font-medium">
-                          {formatDate(event.dateStr)}
+                          {formatDate(event.dateStr, locale)}
                         </span>
                         {event.tier3 && (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
                             <ShieldAlert className="h-2.5 w-2.5" />
-                            Tier 3
+                            {t('tier3')}
                           </span>
                         )}
                         {event.lateSubmission && (
                           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                            Late
+                            {t('late')}
                           </span>
                         )}
                       </div>
@@ -732,7 +765,7 @@ function ReportTimeline({ reports }: { reports: Report[] }) {
                       {event.estimatedEndDate && (
                         <p className="text-xs text-muted-foreground flex items-center gap-1 leading-none">
                           <Clock className="h-3 w-3 shrink-0 -mt-px" />
-                          <span>Est. resolution {formatDate(event.estimatedEndDate)}</span>
+                          <span>{t('estimatedResolution')} {formatDate(event.estimatedEndDate, locale)}</span>
                         </p>
                       )}
                     </div>
@@ -758,12 +791,12 @@ function ReportTimeline({ reports }: { reports: Report[] }) {
           {showAll ? (
             <>
               <ChevronUp className="h-4 w-4 mr-2" />
-              Show fewer
+              {t('showFewer')}
             </>
           ) : (
             <>
               <ChevronDown className="h-4 w-4 mr-2" />
-              Show all {events.length} events
+              {t('showAllEvents', { count: events.length })}
             </>
           )}
         </Button>
@@ -776,27 +809,35 @@ function ReportTimeline({ reports }: { reports: Report[] }) {
 // DRUG DETAILS COMPONENT
 // ===========================================
 
-function DrugDetails({ drug }: { drug: Drug }) {
+function DrugDetails({
+  drug,
+  t,
+  locale
+}: {
+  drug: Drug;
+  t: (key: string, params?: Record<string, string | number | Date>) => string;
+  locale: string;
+}) {
   const details = [
-    { section: 'Basic Information' },
-    { label: 'DIN', value: drug.din, mono: true },
-    { label: 'Drug Code', value: drug.drugCode?.toString() },
-    { label: 'Brand Name', value: drug.brandName },
-    { label: 'Common Name', value: toTitleCase(drug.commonName) },
-    { label: 'Company', value: toTitleCase(drug.company) },
-    { label: 'Market Status', value: drug.marketStatus },
-    { section: 'Composition' },
-    { label: 'Active Ingredient', value: toTitleCase(drug.activeIngredient) },
-    { label: 'Strength', value: drug.strength && drug.strengthUnit ? `${drug.strength} ${drug.strengthUnit}` : drug.strength },
-    { label: 'Number of Ingredients', value: drug.numberOfAis?.toString() },
-    { label: 'Form', value: drug.form },
-    { label: 'Route', value: drug.route },
-    { section: 'Classification' },
-    { label: 'ATC Code', value: drug.atcCode, mono: true },
-    { label: 'ATC Class (Level 3)', value: drug.atcLevel3 },
-    { label: 'ATC Class (Level 5)', value: drug.atcLevel5 },
-    { label: 'AI Group Number', value: drug.aiGroupNo, mono: true },
-    { label: 'DPD Last Updated', value: formatDate(drug.dpdLastUpdated) },
+    { section: t('basicInformation') },
+    { label: t('din'), value: drug.din, mono: true },
+    { label: t('drugCode'), value: drug.drugCode?.toString() },
+    { label: t('brandName'), value: drug.brandName },
+    { label: t('commonName'), value: toTitleCase(drug.commonName) },
+    { label: t('company'), value: toTitleCase(drug.company) },
+    { label: t('marketStatus'), value: drug.marketStatus },
+    { section: t('composition') },
+    { label: t('activeIngredient'), value: toTitleCase(drug.activeIngredient) },
+    { label: t('strength'), value: drug.strength && drug.strengthUnit ? `${drug.strength} ${drug.strengthUnit}` : drug.strength },
+    { label: t('numberOfIngredients'), value: drug.numberOfAis?.toString() },
+    { label: t('form'), value: drug.form },
+    { label: t('route'), value: drug.route },
+    { section: t('classification') },
+    { label: t('atcCode'), value: drug.atcCode, mono: true },
+    { label: t('atcClassLevel3'), value: drug.atcLevel3 },
+    { label: t('atcClassLevel5'), value: drug.atcLevel5 },
+    { label: t('aiGroupNumber'), value: drug.aiGroupNo, mono: true },
+    { label: t('dpdLastUpdated'), value: formatDate(drug.dpdLastUpdated, locale) },
   ];
 
   let rowIndex = 0;
@@ -808,7 +849,7 @@ function DrugDetails({ drug }: { drug: Drug }) {
       transition={{ duration: 0.3, delay: 0.25 }}
       className="space-y-4"
     >
-      <h2 className="text-lg font-semibold">Drug Details</h2>
+      <h2 className="text-lg font-semibold">{t('drugDetails')}</h2>
       <Card className="py-0 gap-0 overflow-hidden">
         <CardContent className="p-0">
           <div>
@@ -856,10 +897,16 @@ function AlternativesList({
   alternatives,
   sourceDrug,
   defaultExpanded = true,
+  t,
+  tStatus,
+  locale,
 }: {
   alternatives: AlternativesData | null;
   sourceDrug: Drug;
   defaultExpanded?: boolean;
+  t: (key: string, params?: Record<string, string | number | Date>) => string;
+  tStatus: (key: string) => string;
+  locale: string;
 }) {
   const [showSameIngredient, setShowSameIngredient] = useState(defaultExpanded);
   const [showAllSameIngredient, setShowAllSameIngredient] = useState(false);
@@ -888,7 +935,7 @@ function AlternativesList({
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3, delay: 0.15 }}
     >
-      <h2 className="text-lg font-semibold">Possible Alternatives ({alternatives.counts.total})</h2>
+      <h2 className="text-lg font-semibold">{t('possibleAlternatives', { count: alternatives.counts.total })}</h2>
 
       {/* Same Ingredient */}
       {sameIngredient.length > 0 && (
@@ -905,10 +952,10 @@ function AlternativesList({
             >
               <div>
                 <div className="text-base font-medium">
-                  Same Ingredient ({sameIngredient.length})
+                  {t('sameIngredientCount', { count: sameIngredient.length })}
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  Generic equivalents containing {toTitleCase(sourceDrug.activeIngredient)}
+                  {t('genericEquivalents', { ingredient: toTitleCase(sourceDrug.activeIngredient) })}
                 </div>
               </div>
               <motion.div
@@ -932,7 +979,7 @@ function AlternativesList({
                       <div className="flex items-center gap-2 p-2.5 rounded-lg border border-amber-200/50 bg-amber-50/50 dark:border-amber-800/30 dark:bg-amber-950/20">
                         <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
                         <span className="text-xs leading-none text-amber-700 dark:text-amber-300">
-                          Always consult a pharmacist or healthcare provider before substituting medications.
+                          {t('consultBeforeSubstituting')}
                         </span>
                       </div>
                       {visibleSameIngredient.map((alt, idx) => (
@@ -942,7 +989,7 @@ function AlternativesList({
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ duration: 0.2, delay: idx * 0.03 }}
                         >
-                          <AlternativeCard alternative={alt} />
+                          <AlternativeCard alternative={alt} tStatus={tStatus} locale={locale} />
                         </motion.div>
                       ))}
                       {sameIngredient.length > 10 && (
@@ -958,12 +1005,12 @@ function AlternativesList({
                           {showAllSameIngredient ? (
                             <>
                               <ChevronUp className="h-4 w-4 mr-1" />
-                              Show fewer
+                              {t('showFewer')}
                             </>
                           ) : (
                             <>
                               <ChevronDown className="h-4 w-4 mr-1" />
-                              Show all {sameIngredient.length} alternatives
+                              {t('showAllAlternatives', { count: sameIngredient.length })}
                             </>
                           )}
                         </Button>
@@ -992,10 +1039,10 @@ function AlternativesList({
             >
               <div>
                 <div className="text-base font-medium">
-                  Same Therapeutic Class ({sameTherapeuticClass.length})
+                  {t('sameTherapeuticClassCount', { count: sameTherapeuticClass.length })}
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  Different ingredients, same drug class (ATC: {sourceDrug.atcCode?.slice(0, 5)})
+                  {t('differentIngredients', { atc: sourceDrug.atcCode?.slice(0, 5) || '' })}
                 </div>
               </div>
               <motion.div
@@ -1019,7 +1066,7 @@ function AlternativesList({
                       <div className="flex items-center gap-2 p-2.5 rounded-lg border border-amber-200/50 bg-amber-50/50 dark:border-amber-800/30 dark:bg-amber-950/20">
                         <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
                         <span className="text-xs leading-none text-amber-700 dark:text-amber-300">
-                          Always consult a pharmacist or healthcare provider before substituting medications.
+                          {t('consultBeforeSubstituting')}
                         </span>
                       </div>
                       {visibleTherapeutic.map((alt, idx) => (
@@ -1029,7 +1076,7 @@ function AlternativesList({
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ duration: 0.2, delay: idx * 0.03 }}
                         >
-                          <AlternativeCard alternative={alt} showIngredient />
+                          <AlternativeCard alternative={alt} showIngredient tStatus={tStatus} locale={locale} />
                         </motion.div>
                       ))}
                       {sameTherapeuticClass.length > 10 && (
@@ -1045,12 +1092,12 @@ function AlternativesList({
                           {showAllTherapeutic ? (
                             <>
                               <ChevronUp className="h-4 w-4 mr-1" />
-                              Show fewer
+                              {t('showFewer')}
                             </>
                           ) : (
                             <>
                               <ChevronDown className="h-4 w-4 mr-1" />
-                              Show all {sameTherapeuticClass.length} alternatives
+                              {t('showAllAlternatives', { count: sameTherapeuticClass.length })}
                             </>
                           )}
                         </Button>
@@ -1069,10 +1116,14 @@ function AlternativesList({
 
 function AlternativeCard({
   alternative,
-  showIngredient = false
+  showIngredient = false,
+  tStatus,
+  locale,
 }: {
   alternative: Alternative;
   showIngredient?: boolean;
+  tStatus: (key: string) => string;
+  locale: string;
 }) {
   const status = alternative.currentStatus || 'available';
   const statusConfig = ALT_STATUS_CONFIG[status] || ALT_STATUS_CONFIG.available;
@@ -1080,7 +1131,7 @@ function AlternativeCard({
 
   return (
     <Link
-      href={`/drugs/${alternative.din}`}
+      href={`/${locale}/drugs/${alternative.din}`}
       className={`flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors group ${isMuted ? 'opacity-60' : ''}`}
     >
       <div className="space-y-0.5 min-w-0 flex-1">
@@ -1109,7 +1160,7 @@ function AlternativeCard({
       <div className="flex items-center gap-2 shrink-0">
         <span className={`flex items-center gap-1.5 text-xs font-medium ${statusConfig.className}`}>
           <span className={`w-1.5 h-1.5 rounded-full ${statusConfig.dotColor}`} />
-          {statusConfig.label}
+          {tStatus(status)}
         </span>
       </div>
     </Link>
@@ -1126,6 +1177,10 @@ export default function DrugDetailClient({
   drugData: DrugData;
 }) {
   const [alternatives, setAlternatives] = useState<AlternativesData | null>(null);
+  const locale = useLocale();
+  const t = useTranslations('DrugDetail');
+  const tStatus = useTranslations('Status');
+  const tCommon = useTranslations('Common');
 
   const { drug, reports } = drugData;
   const activeReport = getActiveReport(reports);
@@ -1167,27 +1222,30 @@ export default function DrugDetailClient({
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Back button */}
       <Button variant="ghost" size="default" className="gap-2" asChild>
-        <Link href="/drugs">
+        <Link href={`/${locale}/drugs`}>
           <ArrowLeft className="h-4 w-4" />
-          Back to all drugs
+          {t('backToAllDrugs')}
         </Link>
       </Button>
 
       {/* Drug Header - Name top left, Status top right */}
-      <DrugHeader drug={drug} activeReport={activeReport} />
+      <DrugHeader drug={drug} activeReport={activeReport} t={t} tStatus={tStatus} locale={locale} />
 
       {/* Report History - Primary content */}
-      <ReportTimeline reports={reports} />
+      <ReportTimeline reports={reports} t={t} locale={locale} />
 
       {/* Alternatives - collapsed by default for available drugs */}
       <AlternativesList
         alternatives={alternatives}
         sourceDrug={drug}
         defaultExpanded={alternativesExpanded}
+        t={t}
+        tStatus={tStatus}
+        locale={locale}
       />
 
       {/* Drug Details - Collapsible */}
-      <DrugDetails drug={drug} />
+      <DrugDetails drug={drug} t={t} locale={locale} />
 
       {/* Footer Disclaimer */}
       <motion.div
@@ -1196,11 +1254,8 @@ export default function DrugDetailClient({
         transition={{ duration: 0.3, delay: 0.4 }}
         className="text-xs text-muted-foreground text-center py-10"
       >
-        <p>
-          Data from Drug Shortages Canada and Health Canada Drug Product Database.
-        </p>
         <p className="mt-1">
-          <strong>This is not medical advice.</strong> Always consult your pharmacist or doctor before making changes to your medication.
+          <strong>{tCommon('notMedicalAdvice')}.</strong> {tCommon('consultProfessional')}
         </p>
       </motion.div>
     </div>

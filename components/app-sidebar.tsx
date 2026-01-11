@@ -3,8 +3,9 @@
 import * as React from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
+import { useLocale, useTranslations } from "next-intl"
 import {
   Home,
   Pill,
@@ -18,6 +19,7 @@ import {
   AlertTriangle,
   Github,
   ExternalLink,
+  Globe,
 } from "lucide-react"
 
 import {
@@ -26,7 +28,6 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -35,59 +36,43 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar"
 
-const navMain = [
-  {
-    title: "Home",
-    url: "/",
-    icon: Home,
-  },
-  {
-    title: "Drugs",
-    url: "/drugs",
-    icon: Pill,
-  },
-  {
-    title: "Reports",
-    url: "/reports",
-    icon: FileText,
-  },
-  {
-    title: "Stats",
-    url: "/stats",
-    icon: BarChart3,
-  },
+const navMainKeys = [
+  { key: "home", url: "/", icon: Home },
+  { key: "drugs", url: "/drugs", icon: Pill },
+  { key: "reports", url: "/reports", icon: FileText },
+  { key: "stats", url: "/stats", icon: BarChart3 },
 ]
 
-const navSecondary = [
-  {
-    title: "About",
-    url: "/about",
-    icon: Info,
-  },
-  {
-    title: "Privacy Policy",
-    url: "/privacy",
-    icon: Shield,
-  },
-  {
-    title: "Terms of Service",
-    url: "/terms",
-    icon: Scale,
-  },
-  {
-    title: "GitHub",
-    url: "https://github.com/Averyy/rxwatch",
-    icon: Github,
-    external: true,
-  },
+const navSecondaryKeys = [
+  { key: "about", url: "/about", icon: Info },
+  { key: "privacy", url: "/privacy", icon: Shield },
+  { key: "terms", url: "/terms", icon: Scale },
+  { key: "github", url: "https://github.com/Averyy/rxwatch", icon: Github, external: true },
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
+  const router = useRouter()
+  const locale = useLocale()
+  const t = useTranslations("Navigation")
+  const tCommon = useTranslations("Common")
   const { setTheme, theme } = useTheme()
 
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark")
+  }
+
+  const toggleLanguage = () => {
+    const newLocale = locale === "en" ? "fr" : "en"
+    // Remove current locale from pathname and add new locale
+    const pathWithoutLocale = pathname.replace(/^\/(en|fr)/, "")
+    router.push(`/${newLocale}${pathWithoutLocale}`)
+  }
+
+  // Check if path is active (accounting for locale prefix)
+  const isActive = (url: string) => {
+    const pathWithoutLocale = pathname.replace(/^\/(en|fr)/, "")
+    return pathWithoutLocale === url || (url === "/" && pathWithoutLocale === "")
   }
 
   return (
@@ -96,7 +81,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <Link href="/">
+              <Link href={`/${locale}`}>
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden shrink-0">
                   <Image
                     src="/logo.png"
@@ -108,7 +93,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">RxWatch Canada</span>
-                  <span className="truncate text-xs text-muted-foreground">Drug Shortage Intelligence</span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {t("subtitle")}
+                  </span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -119,16 +106,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navMain.map((item) => (
-                <SidebarMenuItem key={item.title}>
+              {navMainKeys.map((item) => (
+                <SidebarMenuItem key={item.key}>
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname === item.url}
-                    tooltip={item.title}
+                    isActive={isActive(item.url)}
+                    tooltip={t(item.key)}
                   >
-                    <Link href={item.url}>
+                    <Link href={`/${locale}${item.url === "/" ? "" : item.url}`}>
                       <item.icon />
-                      <span>{item.title}</span>
+                      <span>{t(item.key)}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -140,25 +127,25 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navSecondary.map((item) => (
-                <SidebarMenuItem key={item.title}>
+              {navSecondaryKeys.map((item) => (
+                <SidebarMenuItem key={item.key}>
                   <SidebarMenuButton
                     asChild
-                    isActive={!item.external && pathname === item.url}
-                    tooltip={item.title}
+                    isActive={!item.external && isActive(item.url)}
+                    tooltip={t(item.key)}
                   >
                     {item.external ? (
                       <a href={item.url} target="_blank" rel="noopener noreferrer" className="group/ext">
                         <item.icon />
                         <span className="flex items-center gap-1">
-                          {item.title}
+                          {t(item.key)}
                           <ExternalLink className="!h-3 !w-3 text-muted-foreground group-hover/ext:text-primary" />
                         </span>
                       </a>
                     ) : (
-                      <Link href={item.url}>
+                      <Link href={`/${locale}${item.url}`}>
                         <item.icon />
-                        <span>{item.title}</span>
+                        <span>{t(item.key)}</span>
                       </Link>
                     )}
                   </SidebarMenuButton>
@@ -166,14 +153,24 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               ))}
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  tooltip="Toggle theme"
+                  tooltip={locale === "en" ? "Français" : "English"}
+                  onClick={toggleLanguage}
+                  className="cursor-pointer"
+                >
+                  <Globe />
+                  <span>{locale === "en" ? "English" : "Français"}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  tooltip={theme === "dark" ? t("lightMode") : t("darkMode")}
                   onClick={toggleTheme}
                   className="cursor-pointer"
                 >
                   <Sun className="dark:hidden" />
                   <Moon className="hidden dark:block" />
-                  <span className="dark:hidden">Light mode</span>
-                  <span className="hidden dark:inline">Dark mode</span>
+                  <span className="dark:hidden">{t("lightMode")}</span>
+                  <span className="hidden dark:inline">{t("darkMode")}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -185,16 +182,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <div className="flex items-start gap-2">
             <AlertTriangle className="size-4 text-destructive shrink-0 mt-0.5" />
             <div className="text-xs leading-relaxed text-foreground">
-              <p className="font-medium">Not medical advice</p>
+              <p className="font-medium">{tCommon("notMedicalAdvice")}</p>
               <p className="text-muted-foreground mt-1">
-                Always consult your pharmacist or doctor before making changes.{" "}
+                {tCommon("consultProfessional")}{" "}
                 <a
                   href="https://www.drugshortagescanada.ca"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline hover:text-primary"
                 >
-                  View official data →
+                  {tCommon("viewOfficialData")} →
                 </a>
               </p>
             </div>

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { AlertTriangle, Clock, TrendingDown, CheckCircle, ArrowRight, ShieldAlert } from 'lucide-react';
+import { useTranslations, useLocale } from 'next-intl';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -112,66 +113,54 @@ interface StatsData {
 }
 
 // Status configuration for badges - matches reports page colors
-const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
-  active_confirmed: {
-    label: 'Active',
-    className: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-  },
-  anticipated_shortage: {
-    label: 'Anticipated',
-    className: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-  },
-  avoided_shortage: {
-    label: 'Avoided',
-    className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200',
-  },
-  resolved: {
-    label: 'Resolved',
-    className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200',
-  },
-  to_be_discontinued: {
-    label: 'To Be Discontinued',
-    className: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-  },
-  discontinued: {
-    label: 'Discontinued',
-    className: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
-  },
-  reversed: {
-    label: 'Reversed',
-    className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200',
-  },
+const STATUS_STYLES: Record<string, string> = {
+  active_confirmed: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  anticipated_shortage: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+  avoided_shortage: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200',
+  resolved: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200',
+  to_be_discontinued: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+  discontinued: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
+  reversed: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200',
 };
 
 // Format date as short date with year (e.g., "Jan 6, 2026")
-function formatDate(dateStr: string | null): string {
+function formatDate(dateStr: string | null, locale: string): string {
   if (!dateStr) return '';
 
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return '';
 
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return date.toLocaleDateString(locale === 'fr' ? 'fr-CA' : 'en-CA', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 // Format sync time
-function formatSyncTime(dateStr: string | null): string {
-  if (!dateStr) return 'Unknown';
+function formatSyncTime(
+  dateStr: string | null,
+  tNav: (key: string, params?: Record<string, string | number>) => string
+): string {
+  if (!dateStr) return '';
   const date = new Date(dateStr);
-  if (isNaN(date.getTime())) return 'Unknown';
+  if (isNaN(date.getTime())) return '';
 
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
 
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  return 'Yesterday';
+  if (diffMins < 1) return tNav('justNow');
+  if (diffMins < 60) return tNav('mAgo', { minutes: diffMins });
+  if (diffHours < 24) return tNav('hAgo', { hours: diffHours });
+  return tNav('yesterday');
 }
 
 
 export default function Home() {
+  const locale = useLocale();
+  const t = useTranslations('HomePage');
+  const tNav = useTranslations('Navigation');
+  const tStatus = useTranslations('Status');
+  const tSearch = useTranslations('Search');
+
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -201,8 +190,8 @@ export default function Home() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <AlertTriangle className="h-12 w-12 text-destructive" />
-        <p className="text-muted-foreground">{error || 'Failed to load data'}</p>
-        <Button onClick={() => window.location.reload()}>Retry</Button>
+        <p className="text-muted-foreground">{error || t('failedToLoad')}</p>
+        <Button onClick={() => window.location.reload()}>{t('retry')}</Button>
       </div>
     );
   }
@@ -215,22 +204,22 @@ export default function Home() {
       <div className="space-y-6 py-6">
         <div className="space-y-3 text-center">
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Canadian Drug Shortage Intelligence
+            {t('title')}
           </h1>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            Check Canadian drug shortages and discontinuations by name or DIN. View reports and find medication alternatives.
+            {t('description')}
           </p>
           {/* Sync Status */}
           <div className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
             <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-            <span>Data synced {formatSyncTime(lastSyncedAt)}</span>
+            <span>{t('dataSynced', { time: formatSyncTime(lastSyncedAt, tNav) })}</span>
           </div>
         </div>
 
         {/* Search Bar */}
         <DrugSearch
           variant="hero"
-          placeholder="Search by drug name, DIN, or ingredient..."
+          placeholder={tSearch('placeholder')}
           className="max-w-2xl mx-auto"
         />
       </div>
@@ -257,11 +246,11 @@ export default function Home() {
           whileHover={{ scale: 1.03, y: -4 }}
           whileTap={{ scale: 0.98 }}
         >
-          <Link href="/reports?status=active_confirmed" className="block h-full">
+          <Link href={`/${locale}/reports?status=active_confirmed`} className="block h-full">
             <Card className="h-full cursor-pointer bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-950/30 dark:to-red-900/20 border-red-200/50 dark:border-red-800/30 shadow-sm hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-red-900 dark:text-red-100">
-                Active Shortages
+                {t('activeShortages')}
               </CardTitle>
               <div className="rounded-full bg-red-500/20 p-2">
                 <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
@@ -272,7 +261,7 @@ export default function Home() {
                 {(reportsByStatus.active_confirmed || 0).toLocaleString()}
               </div>
               <p className="text-xs text-red-700/80 dark:text-red-300/80 flex items-center gap-1 mt-1">
-                Currently in shortage
+                {t('currentlyInShortage')}
                 <ArrowRight className="h-3 w-3" />
               </p>
             </CardContent>
@@ -288,11 +277,11 @@ export default function Home() {
           whileHover={{ scale: 1.03, y: -4 }}
           whileTap={{ scale: 0.98 }}
         >
-          <Link href="/reports?status=anticipated_shortage" className="block h-full">
+          <Link href={`/${locale}/reports?status=anticipated_shortage`} className="block h-full">
             <Card className="h-full cursor-pointer bg-gradient-to-br from-amber-50 to-yellow-100/50 dark:from-amber-950/30 dark:to-yellow-900/20 border-amber-200/50 dark:border-amber-800/30 shadow-sm hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-amber-900 dark:text-amber-100">
-                Anticipated
+                {t('anticipated')}
               </CardTitle>
               <div className="rounded-full bg-amber-500/20 p-2">
                 <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
@@ -303,7 +292,7 @@ export default function Home() {
                 {(reportsByStatus.anticipated_shortage || 0).toLocaleString()}
               </div>
               <p className="text-xs text-amber-700/80 dark:text-amber-300/80 flex items-center gap-1 mt-1">
-                Expected shortages
+                {t('expectedShortages')}
                 <ArrowRight className="h-3 w-3" />
               </p>
             </CardContent>
@@ -319,11 +308,11 @@ export default function Home() {
           whileHover={{ scale: 1.03, y: -4 }}
           whileTap={{ scale: 0.98 }}
         >
-          <Link href="/reports?status=to_be_discontinued" className="block h-full">
+          <Link href={`/${locale}/reports?status=to_be_discontinued`} className="block h-full">
             <Card className="h-full cursor-pointer bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20 border-orange-200/50 dark:border-orange-800/30 shadow-sm hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-orange-900 dark:text-orange-100">
-                To Be Discontinued
+                {t('toBeDiscontinued')}
               </CardTitle>
               <div className="rounded-full bg-orange-500/20 p-2">
                 <TrendingDown className="h-4 w-4 text-orange-600 dark:text-orange-400" />
@@ -334,7 +323,7 @@ export default function Home() {
                 {(reportsByStatus.to_be_discontinued || 0).toLocaleString()}
               </div>
               <p className="text-xs text-orange-700/80 dark:text-orange-300/80 flex items-center gap-1 mt-1">
-                Pending discontinuation
+                {t('pendingDiscontinuation')}
                 <ArrowRight className="h-3 w-3" />
               </p>
             </CardContent>
@@ -350,11 +339,11 @@ export default function Home() {
           whileHover={{ scale: 1.03, y: -4 }}
           whileTap={{ scale: 0.98 }}
         >
-          <Link href="/reports?status=resolved" className="block h-full">
+          <Link href={`/${locale}/reports?status=resolved`} className="block h-full">
             <Card className="h-full cursor-pointer bg-gradient-to-br from-emerald-50 to-green-100/50 dark:from-emerald-950/30 dark:to-green-900/20 border-emerald-200/50 dark:border-emerald-800/30 shadow-sm hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
-                Resolved (30d)
+                {t('resolved30d')}
               </CardTitle>
               <div className="rounded-full bg-emerald-500/20 p-2">
                 <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
@@ -365,7 +354,7 @@ export default function Home() {
                 {(resolvedLast30Days || 0).toLocaleString()}
               </div>
               <p className="text-xs text-emerald-700/80 dark:text-emerald-300/80 flex items-center gap-1 mt-1">
-                Recently resolved
+                {t('recentlyResolved')}
                 <ArrowRight className="h-3 w-3" />
               </p>
             </CardContent>
@@ -382,15 +371,15 @@ export default function Home() {
             <div className="flex items-center gap-2">
               <ShieldAlert className="h-5 w-5 text-destructive" />
               <div>
-                <CardTitle>Critical Shortages</CardTitle>
+                <CardTitle>{t('criticalShortages')}</CardTitle>
                 <CardDescription>
-                  Tier 3 shortages affecting essential medications
+                  {t('tier3Description')}
                 </CardDescription>
               </div>
             </div>
-            <Link href="/reports?tier3=true">
+            <Link href={`/${locale}/reports?tier3=true`}>
               <Button variant="ghost" size="sm" className="gap-1">
-                View all <ArrowRight className="h-4 w-4" />
+                {t('viewAll')} <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
           </CardHeader>
@@ -399,7 +388,7 @@ export default function Home() {
               {recentTier3Shortages.map((report) => (
                 <Link
                   key={report.reportId}
-                  href={`/reports/${report.reportId}`}
+                  href={`/${locale}/reports/${report.reportId}`}
                   className="flex items-start justify-between gap-3 py-3 px-3 -mx-3 rounded-lg hover:bg-muted/50 transition-colors group"
                 >
                   <div className="space-y-1 min-w-0 flex-1">
@@ -413,15 +402,15 @@ export default function Home() {
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${STATUS_CONFIG[report.status]?.className || 'bg-gray-100 text-gray-800'}`}>
-                      {STATUS_CONFIG[report.status]?.label || report.status}
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${STATUS_STYLES[report.status] || 'bg-gray-100 text-gray-800'}`}>
+                      {tStatus(report.status)}
                     </span>
                     <span className="text-xs text-muted-foreground/60">
                       {report.status === 'anticipated_shortage'
-                        ? `Starting ${formatDate(report.anticipatedStartDate ?? null)}`
+                        ? t('starting', { date: formatDate(report.anticipatedStartDate ?? null, locale) })
                         : report.actualStartDate
-                          ? `Since ${formatDate(report.actualStartDate)}`
-                          : `Updated ${formatDate(report.apiUpdatedDate ?? null)}`}
+                          ? t('since', { date: formatDate(report.actualStartDate, locale) })
+                          : t('updated', { date: formatDate(report.apiUpdatedDate ?? null, locale) })}
                     </span>
                   </div>
                 </Link>
@@ -434,14 +423,14 @@ export default function Home() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-3">
             <div>
-              <CardTitle>Recent Discontinuations</CardTitle>
+              <CardTitle>{t('recentDiscontinuations')}</CardTitle>
               <CardDescription>
-                Drugs being permanently removed from market
+                {t('discontinuationsDescription')}
               </CardDescription>
             </div>
-            <Link href="/reports?type=discontinuation">
+            <Link href={`/${locale}/reports?type=discontinuation`}>
               <Button variant="ghost" size="sm" className="gap-1">
-                View all <ArrowRight className="h-4 w-4" />
+                {t('viewAll')} <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
           </CardHeader>
@@ -450,7 +439,7 @@ export default function Home() {
               {recentDiscontinuations.map((report) => (
                 <Link
                   key={report.reportId}
-                  href={`/reports/${report.reportId}`}
+                  href={`/${locale}/reports/${report.reportId}`}
                   className="flex items-start justify-between gap-3 py-3 px-3 -mx-3 rounded-lg hover:bg-muted/50 transition-colors group"
                 >
                   <div className="space-y-1 min-w-0 flex-1">
@@ -469,13 +458,13 @@ export default function Home() {
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${STATUS_CONFIG[report.status]?.className || 'bg-gray-100 text-gray-800'}`}>
-                      {STATUS_CONFIG[report.status]?.label || report.status}
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${STATUS_STYLES[report.status] || 'bg-gray-100 text-gray-800'}`}>
+                      {tStatus(report.status)}
                     </span>
                     <span className="text-xs text-muted-foreground/60">
                       {(report.discontinuationDate || report.anticipatedDiscontinuationDate)
-                        ? `On ${formatDate((report.discontinuationDate ?? report.anticipatedDiscontinuationDate) ?? null)}`
-                        : `Updated ${formatDate(report.apiUpdatedDate ?? null)}`}
+                        ? t('on', { date: formatDate((report.discontinuationDate ?? report.anticipatedDiscontinuationDate) ?? null, locale) })
+                        : t('updated', { date: formatDate(report.apiUpdatedDate ?? null, locale) })}
                     </span>
                   </div>
                 </Link>
@@ -487,16 +476,16 @@ export default function Home() {
 
       {/* Quick Links */}
       <div className="flex flex-wrap gap-3 justify-center pt-4 pb-8">
-        <Link href="/drugs">
+        <Link href={`/${locale}/drugs`}>
           <Button variant="outline" size="lg" className="gap-2">
-            Browse All Drugs
+            {t('browseAllDrugs')}
             <ArrowRight className="h-4 w-4" />
           </Button>
         </Link>
-        <Link href="/reports?tier3=true">
+        <Link href={`/${locale}/reports?tier3=true`}>
           <Button variant="outline" size="lg" className="gap-2 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive">
             <ShieldAlert className="h-4 w-4" />
-            Tier 3 Critical Shortages
+            {t('tier3CriticalShortages')}
           </Button>
         </Link>
       </div>

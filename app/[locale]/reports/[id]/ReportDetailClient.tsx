@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useTranslations, useLocale } from 'next-intl';
 import { motion } from 'framer-motion';
 import {
   AlertTriangle,
@@ -174,23 +175,23 @@ const DRUG_STATUS_CONFIG: Record<string, { label: string; className: string; dot
 // UTILITY FUNCTIONS
 // ===========================================
 
-function formatDate(dateStr: string | null): string {
+function formatDate(dateStr: string | null, locale: string): string {
   if (!dateStr) return '';
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('en-CA', {
+  return date.toLocaleDateString(locale === 'fr' ? 'fr-CA' : 'en-CA', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   });
 }
 
-function formatDateTime(dateStr: string | null): string {
+function formatDateTime(dateStr: string | null, locale: string): string {
   if (!dateStr) return '';
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return '';
   // Use explicit format to avoid hydration mismatch between server/client
-  const datePart = date.toLocaleDateString('en-CA', {
+  const datePart = date.toLocaleDateString(locale === 'fr' ? 'fr-CA' : 'en-CA', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -199,7 +200,8 @@ function formatDateTime(dateStr: string | null): string {
   const minutes = date.getMinutes().toString().padStart(2, '0');
   const ampm = hours >= 12 ? 'PM' : 'AM';
   const hour12 = hours % 12 || 12;
-  return `${datePart} at ${hour12}:${minutes} ${ampm}`;
+  const atText = locale === 'fr' ? 'à' : 'at';
+  return `${datePart} ${atText} ${hour12}:${minutes} ${ampm}`;
 }
 
 function toTitleCase(str: string | null): string {
@@ -221,12 +223,25 @@ function cleanMultiLine(str: string | null): string {
 // REPORT HEADER COMPONENT
 // ===========================================
 
-function ReportHeader({ report }: { report: Report }) {
+function ReportHeader({
+  report,
+  t,
+  tStatus,
+  locale,
+}: {
+  report: Report;
+  t: (key: string, params?: Record<string, string | number | Date>) => string;
+  tStatus: (key: string) => string;
+  locale: string;
+}) {
   const config = REPORT_STATUS_CONFIG[report.status] || REPORT_STATUS_CONFIG.resolved;
   const StatusIcon = config.icon;
 
   const displayName = report.commonName || report.brandName || `DIN ${report.din}`;
-  const typeLabel = report.type === 'shortage' ? 'Shortage Report' : 'Discontinuation Report';
+  const typeLabel = report.type === 'shortage' ? t('shortageReport') : t('discontinuationReport');
+
+  // Get status label from translations
+  const statusLabel = tStatus(report.status);
 
   // Determine key dates based on report type
   const getKeyDates = () => {
@@ -240,18 +255,18 @@ function ReportHeader({ report }: { report: Report }) {
       let endDate: string | null;
 
       if (isResolved) {
-        endLabel = 'RESOLVED';
+        endLabel = t('resolved');
         endDate = report.actualEndDate || report.estimatedEndDate;
       } else if (isAvoided) {
-        endLabel = 'AVOIDED';
+        endLabel = t('avoided');
         endDate = report.actualEndDate || report.apiUpdatedDate;
       } else {
-        endLabel = 'EXPECTED RESOLUTION';
+        endLabel = t('expectedResolution');
         endDate = report.estimatedEndDate;
       }
 
       return {
-        startLabel: report.actualStartDate ? 'STARTED' : 'EXPECTED START',
+        startLabel: report.actualStartDate ? t('started') : t('expectedStart'),
         startDate: startDate,
         endLabel,
         endDate,
@@ -262,7 +277,7 @@ function ReportHeader({ report }: { report: Report }) {
       const isCompleted = report.status === 'discontinued';
 
       return {
-        startLabel: isCompleted ? 'DISCONTINUED' : 'PLANNED DISCONTINUATION',
+        startLabel: isCompleted ? t('discontinued') : t('plannedDiscontinuation'),
         startDate: discDate,
         endLabel: null,
         endDate: null,
@@ -298,22 +313,22 @@ function ReportHeader({ report }: { report: Report }) {
         <div className="flex flex-col items-end gap-2 shrink-0">
           <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold ${config.className}`}>
             <StatusIcon className="h-4 w-4 shrink-0" />
-            {config.label}
+            {statusLabel}
           </span>
           {report.tier3 && (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-600 text-white">
               <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
-              Tier 3 Critical
+              {t('tier3Critical')}
             </span>
           )}
           {report.lateSubmission && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-              Late Submission
+              {t('lateSubmission')}
             </span>
           )}
           {report.decisionReversal && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-              Decision Reversed
+              {t('decisionReversed')}
             </span>
           )}
         </div>
@@ -329,7 +344,7 @@ function ReportHeader({ report }: { report: Report }) {
             </p>
             <p className="text-sm font-medium flex items-center gap-1.5">
               <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              {formatDate(dates.startDate)}
+              {formatDate(dates.startDate, locale)}
             </p>
           </div>
         )}
@@ -342,7 +357,7 @@ function ReportHeader({ report }: { report: Report }) {
             </p>
             <p className="text-sm font-medium flex items-center gap-1.5">
               <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              {formatDate(dates.endDate)}
+              {formatDate(dates.endDate, locale)}
             </p>
           </div>
         )}
@@ -350,22 +365,22 @@ function ReportHeader({ report }: { report: Report }) {
         {/* Last Updated */}
         <div className="rounded-lg bg-black/10 dark:bg-black/30 p-3.5 space-y-1.5">
           <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium">
-            Last Updated
+            {t('lastUpdated')}
           </p>
           <p className="text-sm font-medium flex items-center gap-1.5">
             <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            {formatDate(report.apiUpdatedDate)}
+            {formatDate(report.apiUpdatedDate, locale)}
           </p>
         </div>
 
         {/* Report Created */}
         <div className="rounded-lg bg-black/10 dark:bg-black/30 p-3.5 space-y-1.5">
           <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium">
-            Report Created
+            {t('reportCreated')}
           </p>
           <p className="text-sm font-medium flex items-center gap-1.5">
             <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            {formatDate(report.apiCreatedDate)}
+            {formatDate(report.apiCreatedDate, locale)}
           </p>
         </div>
       </div>
@@ -377,7 +392,17 @@ function ReportHeader({ report }: { report: Report }) {
 // LINKED DRUG CARD COMPONENT
 // ===========================================
 
-function LinkedDrugCard({ drug }: { drug: Drug }) {
+function LinkedDrugCard({
+  drug,
+  t,
+  tStatus,
+  locale,
+}: {
+  drug: Drug;
+  t: (key: string, params?: Record<string, string | number | Date>) => string;
+  tStatus: (key: string) => string;
+  locale: string;
+}) {
   const status = drug.currentStatus || 'available';
   const statusConfig = DRUG_STATUS_CONFIG[status] || DRUG_STATUS_CONFIG.available;
 
@@ -390,20 +415,20 @@ function LinkedDrugCard({ drug }: { drug: Drug }) {
     >
       <div className="flex items-center justify-between gap-4 mb-4">
         <div>
-          <h2 className="text-lg font-semibold">Drug Information</h2>
+          <h2 className="text-lg font-semibold">{t('drugInformation')}</h2>
           <p className="text-sm text-muted-foreground">
-            To learn more about the specific drug that is impacted and view possible alternatives, click below.
+            {t('drugInfoDescription')}
           </p>
         </div>
         <Button variant="outline" size="sm" asChild className="shrink-0">
-          <Link href={`/drugs/${drug.din}#alternatives`}>
-            View alternatives
+          <Link href={`/${locale}/drugs/${drug.din}#alternatives`}>
+            {t('viewAlternatives')}
           </Link>
         </Button>
       </div>
 
       <Link
-        href={`/drugs/${drug.din}`}
+        href={`/${locale}/drugs/${drug.din}`}
         className="block p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors group"
       >
         <div className="flex items-center justify-between gap-4">
@@ -431,7 +456,7 @@ function LinkedDrugCard({ drug }: { drug: Drug }) {
           <div className="flex items-center gap-3 shrink-0">
             <span className={`flex items-center gap-1.5 text-xs font-medium ${statusConfig.className}`}>
               <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusConfig.dotColor}`} />
-              {statusConfig.label}
+              {tStatus(status)}
             </span>
             <ExternalLink className="h-4 w-4 text-muted-foreground shrink-0" />
           </div>
@@ -445,49 +470,59 @@ function LinkedDrugCard({ drug }: { drug: Drug }) {
 // REPORT DETAILS COMPONENT
 // ===========================================
 
-function ReportDetails({ report }: { report: Report }) {
+function ReportDetails({
+  report,
+  t,
+  tStatus,
+  locale,
+}: {
+  report: Report;
+  t: (key: string, params?: Record<string, string | number | Date>) => string;
+  tStatus: (key: string) => string;
+  locale: string;
+}) {
   const details = [
-    { section: 'Report Information' },
-    { label: 'Report ID', value: `#${report.reportId}`, mono: true },
-    { label: 'Report Type', value: report.type === 'shortage' ? 'Shortage' : 'Discontinuation' },
-    { label: 'Status', value: REPORT_STATUS_CONFIG[report.status]?.label || report.status },
-    { label: 'Company', value: toTitleCase(report.company) },
-    { label: 'Tier 3 Critical', value: report.tier3 ? 'Yes' : 'No' },
-    { label: 'Late Submission', value: report.lateSubmission ? 'Yes' : 'No' },
-    { label: 'Decision Reversal', value: report.decisionReversal ? 'Yes' : 'No' },
+    { section: t('reportInformation') },
+    { label: t('reportId'), value: `#${report.reportId}`, mono: true },
+    { label: t('reportType'), value: report.type === 'shortage' ? t('shortage') : t('discontinuation') },
+    { label: t('status'), value: tStatus(report.status) },
+    { label: t('company'), value: toTitleCase(report.company) },
+    { label: t('tier3CriticalLabel'), value: report.tier3 ? t('yes') : t('no') },
+    { label: t('lateSubmissionLabel'), value: report.lateSubmission ? t('yes') : t('no') },
+    { label: t('decisionReversal'), value: report.decisionReversal ? t('yes') : t('no') },
 
-    { section: 'Drug Details (at time of report)' },
-    { label: 'DIN', value: report.din, mono: true },
-    { label: 'Brand Name', value: report.brandName },
-    { label: 'Common Name', value: toTitleCase(report.commonName) },
-    { label: 'Active Ingredients', value: report.ingredients },
-    { label: 'Strength', value: report.drugStrength },
-    { label: 'Dosage Form', value: cleanMultiLine(report.drugDosageForm) },
-    { label: 'Route', value: cleanMultiLine(report.drugRoute) },
-    { label: 'Packaging Size', value: report.packagingSize },
+    { section: t('drugDetailsAtTime') },
+    { label: t('din'), value: report.din, mono: true },
+    { label: t('brandName'), value: report.brandName },
+    { label: t('commonName'), value: toTitleCase(report.commonName) },
+    { label: t('activeIngredients'), value: report.ingredients },
+    { label: t('strength'), value: report.drugStrength },
+    { label: t('dosageForm'), value: cleanMultiLine(report.drugDosageForm) },
+    { label: t('route'), value: cleanMultiLine(report.drugRoute) },
+    { label: t('packagingSize'), value: report.packagingSize },
 
-    { section: 'Classification' },
-    { label: 'ATC Code', value: report.atcCode, mono: true },
-    { label: 'ATC Description', value: report.atcDescription },
+    { section: t('classification') },
+    { label: t('atcCode'), value: report.atcCode, mono: true },
+    { label: t('atcDescription'), value: report.atcDescription },
 
-    { section: 'Dates' },
+    { section: t('dates') },
     ...(report.type === 'shortage' ? [
-      { label: 'Anticipated Start', value: formatDate(report.anticipatedStartDate) },
-      { label: 'Actual Start', value: formatDate(report.actualStartDate) },
-      { label: 'Estimated End', value: formatDate(report.estimatedEndDate) },
-      { label: 'Actual End', value: formatDate(report.actualEndDate) },
+      { label: t('anticipatedStart'), value: formatDate(report.anticipatedStartDate, locale) },
+      { label: t('actualStart'), value: formatDate(report.actualStartDate, locale) },
+      { label: t('estimatedEnd'), value: formatDate(report.estimatedEndDate, locale) },
+      { label: t('actualEnd'), value: formatDate(report.actualEndDate, locale) },
     ] : [
-      { label: 'Anticipated Discontinuation', value: formatDate(report.anticipatedDiscontinuationDate) },
-      { label: 'Discontinuation Date', value: formatDate(report.discontinuationDate) },
+      { label: t('anticipatedDiscontinuation'), value: formatDate(report.anticipatedDiscontinuationDate, locale) },
+      { label: t('discontinuationDate'), value: formatDate(report.discontinuationDate, locale) },
     ]),
 
-    { section: 'Reason' },
-    { label: 'Reason (English)', value: report.reasonEn },
-    { label: 'Reason (French)', value: report.reasonFr },
+    { section: t('reasonSection') },
+    { label: t('reasonEnglish'), value: report.reasonEn },
+    { label: t('reasonFrench'), value: report.reasonFr },
 
-    { section: 'Timestamps' },
-    { label: 'Report Created', value: formatDateTime(report.apiCreatedDate) },
-    { label: 'Last Updated', value: formatDateTime(report.apiUpdatedDate) },
+    { section: t('timestamps') },
+    { label: t('reportCreated'), value: formatDateTime(report.apiCreatedDate, locale) },
+    { label: t('lastUpdated'), value: formatDateTime(report.apiUpdatedDate, locale) },
   ];
 
   let rowIndex = 0;
@@ -499,7 +534,7 @@ function ReportDetails({ report }: { report: Report }) {
       transition={{ duration: 0.3, delay: 0.2 }}
       className="space-y-4"
     >
-      <h2 className="text-lg font-semibold">Report Details</h2>
+      <h2 className="text-lg font-semibold">{t('reportDetails')}</h2>
       <Card className="py-0 gap-0 overflow-hidden">
         <CardContent className="p-0">
           <div>
@@ -543,7 +578,13 @@ function ReportDetails({ report }: { report: Report }) {
 // EXTERNAL LINK COMPONENT
 // ===========================================
 
-function ExternalReportLink({ report }: { report: Report }) {
+function ExternalReportLink({
+  report,
+  t,
+}: {
+  report: Report;
+  t: (key: string, params?: Record<string, string | number | Date>) => string;
+}) {
   const baseUrl = report.type === 'shortage'
     ? 'https://www.drugshortagescanada.ca/shortage'
     : 'https://www.drugshortagescanada.ca/discontinuance';
@@ -561,7 +602,7 @@ function ExternalReportLink({ report }: { report: Report }) {
         className="flex items-center justify-center gap-2 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors text-sm text-muted-foreground hover:text-foreground"
       >
         <ExternalLink className="h-4 w-4 shrink-0" />
-        View on Drug Shortages Canada
+        {t('viewOnDSC')}
       </a>
     </motion.div>
   );
@@ -576,29 +617,34 @@ export default function ReportDetailClient({
 }: {
   reportData: ReportData;
 }) {
+  const locale = useLocale();
+  const t = useTranslations('ReportDetail');
+  const tStatus = useTranslations('Status');
+  const tCommon = useTranslations('Common');
+
   const { report, drug } = reportData;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Back button */}
       <Button variant="ghost" size="default" className="gap-2" asChild>
-        <Link href="/reports">
+        <Link href={`/${locale}/reports`}>
           <ArrowLeft className="h-4 w-4 shrink-0" />
-          Back to all reports
+          {t('backToReports')}
         </Link>
       </Button>
 
       {/* Report Header */}
-      <ReportHeader report={report} />
+      <ReportHeader report={report} t={t} tStatus={tStatus} locale={locale} />
 
       {/* Linked Drug Card */}
-      {drug && <LinkedDrugCard drug={drug} />}
+      {drug && <LinkedDrugCard drug={drug} t={t} tStatus={tStatus} locale={locale} />}
 
       {/* Report Details */}
-      <ReportDetails report={report} />
+      <ReportDetails report={report} t={t} tStatus={tStatus} locale={locale} />
 
       {/* External Link */}
-      <ExternalReportLink report={report} />
+      <ExternalReportLink report={report} t={t} />
 
       {/* Footer Disclaimer */}
       <motion.div
@@ -608,10 +654,10 @@ export default function ReportDetailClient({
         className="text-xs text-muted-foreground text-center py-10"
       >
         <p>
-          Data from Drug Shortages Canada and Health Canada Drug Product Database.
+          {t('dataFromSources')}
         </p>
         <p className="mt-1">
-          <strong>This is not medical advice.</strong> Always consult your pharmacist or doctor before making changes to your medication.
+          <strong>{tCommon('notMedicalAdvice')}.</strong> {tCommon('consultProfessional')}
         </p>
       </motion.div>
     </div>

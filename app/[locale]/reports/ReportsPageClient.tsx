@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTheme } from 'next-themes';
+import { useTranslations, useLocale } from 'next-intl';
 import { AgGridReact } from 'ag-grid-react';
 import {
   AllCommunityModule,
@@ -117,54 +118,50 @@ interface Report {
 }
 
 // Status configuration - shared between filter and cell renderer
-const STATUS_CONFIG: Record<string, { label: string; className: string; filterClass: string }> = {
+// Labels are looked up via translation keys in Status namespace
+const STATUS_CONFIG: Record<string, { className: string; filterClass: string }> = {
   active_confirmed: {
-    label: 'Active',
     className: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
     filterClass: 'bg-red-100 text-red-800 border-red-200 hover:bg-red-200 dark:bg-red-900/50 dark:text-red-200 dark:border-red-800 dark:hover:bg-red-900',
   },
   anticipated_shortage: {
-    label: 'Anticipated',
     className: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
     filterClass: 'bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200 dark:bg-yellow-900/50 dark:text-yellow-200 dark:border-yellow-800 dark:hover:bg-yellow-900',
   },
   to_be_discontinued: {
-    label: 'To Be Discontinued',
     className: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
     filterClass: 'bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-200 dark:bg-orange-900/50 dark:text-orange-200 dark:border-orange-800 dark:hover:bg-orange-900',
   },
   discontinued: {
-    label: 'Discontinued',
     className: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
     filterClass: 'bg-gray-100 text-gray-800 border-gray-200 hover:bg-gray-200 dark:bg-gray-800/50 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800',
   },
   resolved: {
-    label: 'Resolved',
     className: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
     filterClass: 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-200 dark:border-green-800 dark:hover:bg-green-900',
   },
   avoided_shortage: {
-    label: 'Avoided',
     className: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
     filterClass: 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-200 dark:border-blue-800 dark:hover:bg-blue-900',
   },
   reversed: {
-    label: 'Reversed',
     className: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
     filterClass: 'bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-200 dark:bg-purple-900/50 dark:text-purple-200 dark:border-purple-800 dark:hover:bg-purple-900',
   },
 };
 
-// Status badge component
+// Status badge component - uses translations
 function StatusCellRenderer(props: { value: string | null }) {
+  const tStatus = useTranslations('Status');
   const status = props.value;
   if (!status) return null;
 
-  const config = STATUS_CONFIG[status] || { label: status, className: 'bg-gray-100 text-gray-800' };
+  const config = STATUS_CONFIG[status] || { className: 'bg-gray-100 text-gray-800' };
+  const label = tStatus.has(status) ? tStatus(status) : status;
 
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${config.className}`}>
-      {config.label}
+      {label}
     </span>
   );
 }
@@ -184,6 +181,9 @@ export default function ReportsPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { resolvedTheme } = useTheme();
+  const locale = useLocale();
+  const t = useTranslations('ReportsPage');
+  const tStatus = useTranslations('Status');
   const gridRef = useRef<AgGridReact<Report>>(null);
   const [rowData, setRowData] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
@@ -345,65 +345,65 @@ export default function ReportsPageClient() {
     }
 
     // Update URL without adding to history
-    const newUrl = params.toString() ? `?${params.toString()}` : '/reports';
+    const newUrl = params.toString() ? `/${locale}/reports?${params.toString()}` : `/${locale}/reports`;
     router.replace(newUrl, { scroll: false });
-  }, [statusFilters, tier3Only, typeFilter, dateRange, searchText, customSince, customUntil, customCreatedSince, customCreatedUntil, router]);
+  }, [statusFilters, tier3Only, typeFilter, dateRange, searchText, customSince, customUntil, customCreatedSince, customCreatedUntil, router, locale]);
 
   // Column definitions
   const columnDefs = useMemo<ColDef<Report>[]>(() => [
     {
       field: 'reportId',
-      headerName: 'Report ID',
+      headerName: t('columns.reportId'),
       width: 110,
       pinned: 'left',
     },
     {
       field: 'din',
-      headerName: 'DIN',
+      headerName: t('columns.din'),
       width: 100,
     },
     {
       field: 'brandName',
-      headerName: 'Brand Name',
+      headerName: t('columns.brandName'),
       flex: 1,
       minWidth: 150,
     },
     {
       field: 'commonName',
-      headerName: 'Common Name',
+      headerName: t('columns.commonName'),
       flex: 1,
       minWidth: 150,
     },
     {
       field: 'status',
-      headerName: 'Status',
+      headerName: t('columns.status'),
       width: 140,
       cellRenderer: StatusCellRenderer,
     },
     {
       field: 'reasonEn',
-      headerName: 'Reason',
+      headerName: t('columns.reason'),
       flex: 1,
       minWidth: 150,
     },
     {
       field: 'company',
-      headerName: 'Company',
+      headerName: t('columns.company'),
       flex: 1,
       minWidth: 150,
       valueFormatter: (params) => toTitleCase(params.value),
     },
     {
       field: 'tier3',
-      headerName: 'Tier 3',
+      headerName: t('columns.tier3'),
       width: 80,
-      cellRenderer: (params: { value: boolean | null }) => <BooleanCellRenderer value={params.value} label="Tier 3" />,
+      cellRenderer: (params: { value: boolean | null }) => <BooleanCellRenderer value={params.value} label={t('columns.tier3')} />,
     },
     {
       field: 'lateSubmission',
-      headerName: 'Late',
+      headerName: t('columns.late'),
       width: 70,
-      cellRenderer: (params: { value: boolean | null }) => <BooleanCellRenderer value={params.value} label="Late" />,
+      cellRenderer: (params: { value: boolean | null }) => <BooleanCellRenderer value={params.value} label={t('columns.late')} />,
     },
     {
       headerName: 'Start Date',
@@ -444,11 +444,11 @@ export default function ReportsPageClient() {
     },
     {
       field: 'apiUpdatedDate',
-      headerName: 'Updated',
+      headerName: t('columns.updated'),
       width: 120,
       valueFormatter: (params) => formatDate(params.value),
     },
-  ], []);
+  ], [t]);
 
   // Default column properties
   const defaultColDef = useMemo<ColDef>(() => ({
@@ -508,7 +508,7 @@ export default function ReportsPageClient() {
   // Handle row click - navigate to report detail page
   const onRowClicked = (event: { data: Report | undefined }) => {
     if (event.data?.reportId) {
-      router.push(`/reports/${event.data.reportId}`);
+      router.push(`/${locale}/reports/${event.data.reportId}`);
     }
   };
 
@@ -620,20 +620,20 @@ export default function ReportsPageClient() {
 
   // Filtered count text - use displayedRowCount when filters active, otherwise rowData.length
   const countText = useMemo(() => {
-    if (loading) return 'Loading...';
+    if (loading) return t('noResults');
     // When filters are active and we have a valid displayed count, show filtered count
     if (hasActiveFilters && displayedRowCount > 0 && displayedRowCount !== rowData.length) {
-      return `${displayedRowCount.toLocaleString()} of ${rowData.length.toLocaleString()} reports`;
+      return t('filteredCount', { filtered: displayedRowCount.toLocaleString(), total: rowData.length.toLocaleString() });
     }
-    return `${rowData.length.toLocaleString()} shortage reports`;
-  }, [loading, hasActiveFilters, displayedRowCount, rowData.length]);
+    return t('reportsWithFilters', { count: rowData.length.toLocaleString() });
+  }, [loading, hasActiveFilters, displayedRowCount, rowData.length, t]);
 
   // Early returns AFTER all hooks
   if (error) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-10rem)]">
         <div className="text-center">
-          <h2 className="text-lg font-semibold text-red-600 dark:text-red-400">Error loading reports</h2>
+          <h2 className="text-lg font-semibold text-red-600 dark:text-red-400">{t('errorLoading')}</h2>
           <p className="text-muted-foreground mt-2">{error}</p>
         </div>
       </div>
@@ -649,7 +649,7 @@ export default function ReportsPageClient() {
     <div className="flex flex-col gap-3 h-[calc(100vh-6rem)]">
       {/* Header - title and count on one line */}
       <div className="flex items-baseline justify-between flex-shrink-0">
-        <h1 className="text-2xl font-bold tracking-tight">Shortage reports</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t('title')}</h1>
         <p className="text-sm text-muted-foreground">{countText}</p>
       </div>
 
@@ -663,7 +663,7 @@ export default function ReportsPageClient() {
           />
           <input
             type="text"
-            placeholder="Search anything to filter the table..."
+            placeholder={t('searchPlaceholder')}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             className="w-full pl-10 pr-10 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
@@ -697,13 +697,13 @@ export default function ReportsPageClient() {
             }}
           >
             {dateRange === 'custom' && (
-              <NativeSelectOption value="custom">Custom</NativeSelectOption>
+              <NativeSelectOption value="custom">{t('dateRange.custom')}</NativeSelectOption>
             )}
-            <NativeSelectOption value="thisYear">This year</NativeSelectOption>
-            <NativeSelectOption value="lastYear">Last year</NativeSelectOption>
-            <NativeSelectOption value="3years">Last 3 y</NativeSelectOption>
-            <NativeSelectOption value="5years">Last 5 y</NativeSelectOption>
-            <NativeSelectOption value="all">All time</NativeSelectOption>
+            <NativeSelectOption value="thisYear">{t('dateRange.thisYear')}</NativeSelectOption>
+            <NativeSelectOption value="lastYear">{t('dateRange.lastYear')}</NativeSelectOption>
+            <NativeSelectOption value="3years">{t('dateRange.last3Years')}</NativeSelectOption>
+            <NativeSelectOption value="5years">{t('dateRange.last5Years')}</NativeSelectOption>
+            <NativeSelectOption value="all">{t('dateRange.allTime')}</NativeSelectOption>
           </NativeSelect>
         </div>
 
@@ -711,7 +711,7 @@ export default function ReportsPageClient() {
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm text-muted-foreground flex items-center gap-1">
             <Funnel size={14} />
-            Status:
+            {t('statusFilter')}:
           </span>
 
           {/* All button - clears other selections */}
@@ -723,11 +723,12 @@ export default function ReportsPageClient() {
                 : 'bg-secondary/50 text-secondary-foreground border-border hover:bg-secondary'
             }`}
           >
-            All
+            {t('all')}
           </button>
 
           {Object.entries(STATUS_CONFIG).map(([status, config]) => {
             const isSelected = statusFilters.includes(status);
+            const label = tStatus.has(status) ? tStatus(status) : status;
             return (
               <button
                 key={status}
@@ -744,7 +745,7 @@ export default function ReportsPageClient() {
                     : 'bg-secondary/50 text-secondary-foreground border-border hover:bg-secondary'
                 }`}
               >
-                {config.label}
+                {label}
               </button>
             );
           })}
@@ -769,9 +770,9 @@ export default function ReportsPageClient() {
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value as 'shortage' | 'discontinuation' | 'all')}
           >
-            <NativeSelectOption value="all">All types</NativeSelectOption>
-            <NativeSelectOption value="shortage">Shortages only</NativeSelectOption>
-            <NativeSelectOption value="discontinuation">Discontinuations only</NativeSelectOption>
+            <NativeSelectOption value="all">{t('all')}</NativeSelectOption>
+            <NativeSelectOption value="shortage">{t('shortage')}</NativeSelectOption>
+            <NativeSelectOption value="discontinuation">{t('discontinuation')}</NativeSelectOption>
           </NativeSelect>
 
           {/* Reset filters button (only when any filter is active) */}
@@ -787,7 +788,7 @@ export default function ReportsPageClient() {
               }}
             >
               <X size={12} />
-              Reset filters
+              {t('resetFilters')}
             </Button>
           )}
         </div>
@@ -829,7 +830,7 @@ export default function ReportsPageClient() {
       <div className="flex items-center justify-between px-4 py-2 flex-shrink-0">
         {/* Page size selector - left (min-width to prevent layout shift) */}
         <div className="flex items-center gap-2 min-w-[180px]">
-          <span className="text-sm text-muted-foreground">Show</span>
+          <span className="text-sm text-muted-foreground">{t('show')}</span>
           <NativeSelect
             size="sm"
             value={pageSize >= 999999 ? 'all' : pageSize}
@@ -840,9 +841,9 @@ export default function ReportsPageClient() {
             <NativeSelectOption value={100}>100</NativeSelectOption>
             <NativeSelectOption value={200}>200</NativeSelectOption>
             <NativeSelectOption value={1000}>1000</NativeSelectOption>
-            <NativeSelectOption value="all">All</NativeSelectOption>
+            <NativeSelectOption value="all">{t('all')}</NativeSelectOption>
           </NativeSelect>
-          <span className="text-sm text-muted-foreground">rows</span>
+          <span className="text-sm text-muted-foreground">{t('rows')}</span>
         </div>
 
         {/* Navigation controls - center */}
@@ -852,7 +853,7 @@ export default function ReportsPageClient() {
             size="icon-sm"
             onClick={() => gridRef.current?.api?.paginationGoToFirstPage()}
             disabled={currentPage === 0}
-            title="First page"
+            title={t('firstPage')}
           >
             <CaretDoubleLeft size={16} />
           </Button>
@@ -861,22 +862,22 @@ export default function ReportsPageClient() {
             size="sm"
             onClick={() => gridRef.current?.api?.paginationGoToPreviousPage()}
             disabled={currentPage === 0}
-            title="Previous page"
+            title={t('previousPage')}
           >
             <CaretLeft size={16} />
-            Prev
+            {t('prev')}
           </Button>
           <span className="px-3 text-sm text-muted-foreground tabular-nums">
-            Page <span className="font-medium text-foreground">{currentPage + 1}</span> of <span className="font-medium text-foreground">{totalPages || 1}</span>
+            {t('page')} <span className="font-medium text-foreground">{currentPage + 1}</span> {t('of')} <span className="font-medium text-foreground">{totalPages || 1}</span>
           </span>
           <Button
             variant="outline"
             size="sm"
             onClick={() => gridRef.current?.api?.paginationGoToNextPage()}
             disabled={currentPage >= totalPages - 1}
-            title="Next page"
+            title={t('nextPage')}
           >
-            Next
+            {t('next')}
             <CaretRight size={16} />
           </Button>
           <Button
@@ -884,7 +885,7 @@ export default function ReportsPageClient() {
             size="icon-sm"
             onClick={() => gridRef.current?.api?.paginationGoToLastPage()}
             disabled={currentPage >= totalPages - 1}
-            title="Last page"
+            title={t('lastPage')}
           >
             <CaretDoubleRight size={16} />
           </Button>
@@ -896,16 +897,16 @@ export default function ReportsPageClient() {
             const start = currentPage * pageSize + 1;
             const end = Math.min((currentPage + 1) * pageSize, displayedRowCount);
             if (pageSize >= 999999 || displayedRowCount <= pageSize) {
-              return `${displayedRowCount.toLocaleString()} rows`;
+              return t('rowsCount', { count: displayedRowCount.toLocaleString() });
             }
-            return `${start.toLocaleString()} – ${end.toLocaleString()} of ${displayedRowCount.toLocaleString()}`;
+            return t('rowsRange', { start: start.toLocaleString(), end: end.toLocaleString(), total: displayedRowCount.toLocaleString() });
           })()}
         </div>
       </div>
 
       {/* Legal disclaimer */}
       <p className="text-xs text-muted-foreground text-center flex-shrink-0">
-        This is not medical advice. Always consult your pharmacist or doctor before making changes to your medication.
+        {t('disclaimer')}
       </p>
     </div>
   );

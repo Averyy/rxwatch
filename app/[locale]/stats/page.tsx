@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useTranslations, useLocale } from 'next-intl';
 import {
   AlertTriangle,
   TrendingUp,
@@ -243,6 +244,10 @@ function StatsSkeleton() {
 
 export default function StatsPage() {
   const router = useRouter();
+  const locale = useLocale();
+  const t = useTranslations('StatsPage');
+  const tCommon = useTranslations('Common');
+  const tStatus = useTranslations('Status');
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -272,8 +277,8 @@ export default function StatsPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <AlertTriangle className="h-12 w-12 text-destructive" />
-        <p className="text-muted-foreground">{error || 'Failed to load data'}</p>
-        <Button onClick={() => window.location.reload()}>Retry</Button>
+        <p className="text-muted-foreground">{error || t('failedToLoad')}</p>
+        <Button onClick={() => window.location.reload()}>{t('retry')}</Button>
       </div>
     );
   }
@@ -391,62 +396,62 @@ export default function StatsPage() {
     <div className="space-y-8">
       {/* Header */}
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">Drug Shortage Analytics</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t('pageTitle')}</h1>
         <p className="text-muted-foreground">
-          Accountability metrics and trend analysis for journalists and regulators
+          {t('pageDescription')}
         </p>
       </div>
 
       {/* Key Metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Link href="/reports?status=active_confirmed,anticipated_shortage">
+        <Link href={`/${locale}/reports?status=active_confirmed,anticipated_shortage`}>
           <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Shortages</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('activeShortages')}</CardTitle>
               <Activity className="h-4 w-4 text-destructive" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-destructive">{stats.totals.activeReports.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Click to view all</p>
+              <p className="text-xs text-muted-foreground">{t('clickToViewAll')}</p>
             </CardContent>
           </Card>
         </Link>
 
-        <Link href="/reports?tier3=true">
+        <Link href={`/${locale}/reports?tier3=true`}>
           <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tier 3 Critical</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('tier3Critical')}</CardTitle>
               <ShieldAlert className="h-4 w-4 text-destructive" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-destructive">{stats.totals.tier3Active.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Highest impact</p>
+              <p className="text-xs text-muted-foreground">{t('highestImpact')}</p>
             </CardContent>
           </Card>
         </Link>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Median Duration</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('medianDuration')}</CardTitle>
             <Clock className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {accountability.shortageDuration?.median_days || '—'}
-              <span className="text-base font-normal text-muted-foreground ml-1">days</span>
+              <span className="text-base font-normal text-muted-foreground ml-1">{t('days')}</span>
             </div>
-            <p className="text-xs text-muted-foreground">Avg: {accountability.shortageDuration?.avg_days || '—'} days</p>
+            <p className="text-xs text-muted-foreground">{t('avg')}: {accountability.shortageDuration?.avg_days || '—'} {t('days')}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Reports</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('totalReports')}</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totals.reports.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Since 2017</p>
+            <p className="text-xs text-muted-foreground">{t('since2017')}</p>
           </CardContent>
         </Card>
       </div>
@@ -458,10 +463,10 @@ export default function StatsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5" />
-              Annual Report Volume by Status
+              {t('annualReportVolume')}
             </CardTitle>
             <CardDescription>
-              Reports created each year, broken down by final status
+              {t('reportsCreatedEachYear')}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -507,10 +512,10 @@ export default function StatsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ShieldAlert className="h-5 w-5" />
-              Tier 3 Critical Shortages by Year
+              {t('tier3ByYear')}
             </CardTitle>
             <CardDescription>
-              Most severe shortages (no alternatives available)
+              {t('mostSevereShortages')}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -539,7 +544,7 @@ export default function StatsPage() {
                   className="cursor-pointer"
                   onClick={(data) => {
                     if (data?.year) {
-                      router.push(`/reports?tier3=true&created_since=${data.year}-01-01&created_until=${data.year}-12-31`);
+                      router.push(`/${locale}/reports?tier3=true&created_since=${data.year}-01-01&created_until=${data.year}-12-31`);
                     }
                   }}
                 />
@@ -553,10 +558,10 @@ export default function StatsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
-              Average Shortage Duration by Year
+              {t('avgDurationByYear')}
             </CardTitle>
             <CardDescription>
-              Are shortages lasting longer? (resolved shortages only)
+              {t('areShortagesLasting')}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -586,7 +591,7 @@ export default function StatsPage() {
                   className="cursor-pointer"
                   onClick={(data) => {
                     if (data?.year) {
-                      router.push(`/reports?status=resolved&created_since=${data.year}-01-01&created_until=${data.year}-12-31`);
+                      router.push(`/${locale}/reports?status=resolved&created_since=${data.year}-01-01&created_until=${data.year}-12-31`);
                     }
                   }}
                 />
@@ -601,7 +606,7 @@ export default function StatsPage() {
       <div className="space-y-4">
         <h2 className="text-xl font-semibold flex items-center gap-2">
           <Activity className="h-5 w-5" />
-          Drugs in Shortage
+          {t('drugsInShortage')}
         </h2>
 
         <div className="grid gap-6 lg:grid-cols-2">
@@ -610,10 +615,10 @@ export default function StatsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Activity className="h-5 w-5" />
-              Active Shortages by Ingredient
+              {t('activeByIngredient')}
             </CardTitle>
             <CardDescription>
-              Which active ingredients have the most shortages?
+              {t('whichIngredients')}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -641,7 +646,7 @@ export default function StatsPage() {
                   className="cursor-pointer"
                   onClick={(data) => {
                     if (data?.fullName) {
-                      router.push(`/reports?search=${encodeURIComponent(data.fullName)}&status=active_confirmed,anticipated_shortage`);
+                      router.push(`/${locale}/reports?search=${encodeURIComponent(data.fullName)}&status=active_confirmed,anticipated_shortage`);
                     }
                   }}
                 />
@@ -655,10 +660,10 @@ export default function StatsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Activity className="h-5 w-5" />
-              All-Time Reports by Ingredient
+              {t('allTimeByIngredient')}
             </CardTitle>
             <CardDescription>
-              Historical shortage volume by active ingredient
+              {t('historicalByIngredient')}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -687,7 +692,7 @@ export default function StatsPage() {
                   className="cursor-pointer"
                   onClick={(data) => {
                     if (data?.fullName) {
-                      router.push(`/reports?search=${encodeURIComponent(data.fullName)}`);
+                      router.push(`/${locale}/reports?search=${encodeURIComponent(data.fullName)}`);
                     }
                   }}
                 />
@@ -701,10 +706,10 @@ export default function StatsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <PieChartIcon className="h-5 w-5" />
-              Active Shortages by Drug Category
+              {t('activeByCategory')}
             </CardTitle>
             <CardDescription>
-              Which therapeutic classes are most affected?
+              {t('whichCategories')}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -737,10 +742,10 @@ export default function StatsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <PieChartIcon className="h-5 w-5" />
-              All-Time Reports by Drug Category
+              {t('allTimeByCategory')}
             </CardTitle>
             <CardDescription>
-              Historical shortage volume by therapeutic class
+              {t('historicalByCategory')}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -774,31 +779,31 @@ export default function StatsPage() {
       <div className="space-y-4">
         <h2 className="text-xl font-semibold flex items-center gap-2">
           <Building2 className="h-5 w-5" />
-          Company Accountability
+          {t('companyAccountability')}
         </h2>
 
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Companies with Most Shortages */}
           <Card>
             <CardHeader>
-              <CardTitle>Companies with Most Shortages (All Time)</CardTitle>
-              <CardDescription>Click any row to view their reports</CardDescription>
+              <CardTitle>{t('companiesWithMost')}</CardTitle>
+              <CardDescription>{t('clickAnyRow')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
                 {repeatOffendersData.map((company, i) => (
-                  <Link key={company.fullName} href={`/reports?search=${encodeURIComponent(company.fullName)}&type=shortage`}>
+                  <Link key={company.fullName} href={`/${locale}/reports?search=${encodeURIComponent(company.fullName)}&type=shortage`}>
                     <div className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors">
                       <div className="flex items-center gap-3">
                         <span className="text-sm font-medium text-muted-foreground w-5">{i + 1}</span>
                         <div>
                           <p className="font-medium text-sm">{company.company}</p>
-                          <p className="text-xs text-muted-foreground">{company.total.toLocaleString()} total shortages</p>
+                          <p className="text-xs text-muted-foreground">{company.total.toLocaleString()} {t('totalShortages')}</p>
                         </div>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-medium text-destructive">
-                          {company.active} active
+                          {company.active} {t('active')}
                         </p>
                       </div>
                     </div>
@@ -806,7 +811,7 @@ export default function StatsPage() {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground mt-4 italic">
-                Large manufacturers have more reports because they produce more drugs.
+                {t('largeManufacturers')}
               </p>
             </CardContent>
           </Card>
@@ -816,14 +821,14 @@ export default function StatsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="h-5 w-5" />
-                Shortage Root Causes
+                {t('shortageRootCauses')}
               </CardTitle>
-              <CardDescription>Why do shortages happen? (company-reported reasons)</CardDescription>
+              <CardDescription>{t('whyShortages')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {rootCauseData.map((cause) => (
-                  <Link key={cause.reason} href={`/reports?search=${encodeURIComponent(cause.reason)}`}>
+                  <Link key={cause.reason} href={`/${locale}/reports?search=${encodeURIComponent(cause.reason)}`}>
                     <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer">
                       <span className="text-sm font-medium">{cause.reason}</span>
                       <span className="text-lg font-bold tabular-nums">{cause.count.toLocaleString()}</span>
@@ -841,10 +846,10 @@ export default function StatsPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
-            Shortage Root Causes
+            {t('shortageRootCauses')}
           </CardTitle>
           <CardDescription>
-            Why do shortages happen? (company-reported reasons)
+            {t('whyShortages')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -908,13 +913,13 @@ export default function StatsPage() {
       {/* Footer */}
       <div className="text-center text-sm text-muted-foreground pb-4 space-y-1">
         <p>
-          Data from{' '}
+          {t('dataFrom')}{' '}
           <a href="https://www.drugshortagescanada.ca" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">Drug Shortages Canada</a>
-          {' '}and{' '}
+          {' '}{t('and')}{' '}
           <a href="https://www.canada.ca/en/health-canada.html" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">Health Canada</a>
-          . Updated every 15 minutes.
+          . {t('updatedEvery15')}
         </p>
-        <p>This is not medical advice. Always consult your pharmacist or doctor.</p>
+        <p>{tCommon('notMedicalAdvice')}. {tCommon('consultProfessional')}</p>
       </div>
     </div>
   );

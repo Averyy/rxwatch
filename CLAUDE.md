@@ -4,7 +4,6 @@ Canadian drug shortage lookup + notification tool. Combines Drug Shortages Canad
 
 ## What's Not Built Yet
 - [ ] DrugSearch autocomplete dropdown styling
-- [ ] i18n (EN/FR)
 
 ## Database Stats
 | Data | Count |
@@ -37,7 +36,7 @@ Canadian drug shortage lookup + notification tool. Combines Drug Shortages Canad
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Tech Stack:** Next.js 15, React 19, Tailwind, shadcn/ui, AG Grid, Recharts, Drizzle ORM, PostgreSQL
+**Tech Stack:** Next.js 15, React 19, Tailwind, shadcn/ui, AG Grid, Recharts, Drizzle ORM, PostgreSQL, next-intl (EN/FR)
 
 ---
 

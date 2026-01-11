@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
+import { getTranslations, setRequestLocale } from 'next-intl/server';
 import {
   ExternalLink,
   Database,
@@ -25,42 +26,53 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 // METADATA
 // ===========================================
 
-export const metadata: Metadata = {
-  title: 'About RxWatch | Canadian Drug Shortage Intelligence',
-  description:
-    'Learn about RxWatch, a free tool for tracking Canadian drug shortages. Understand our data sources, update frequency, and how to use the service.',
+type Props = {
+  params: Promise<{ locale: string }>;
 };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'AboutPage' });
+
+  return {
+    title: t('metaTitle'),
+    description: t('metaDescription'),
+  };
+}
 
 // ===========================================
 // PAGE COMPONENT
 // ===========================================
 
-export default function AboutPage() {
+export default async function AboutPage({ params }: Props) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+  const t = await getTranslations('AboutPage');
+  const tCommon = await getTranslations('Common');
+
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       {/* Header */}
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">About RxWatch</h1>
+        <h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
         <p className="text-lg text-muted-foreground">
-          Free, real-time drug shortage intelligence for Canadians
+          {t('subtitle')}
         </p>
       </div>
 
       {/* Important Disclaimer - Must be prominent */}
       <Alert variant="destructive" className="border-2">
         <AlertTriangle className="h-5 w-5" />
-        <AlertTitle className="text-lg">Important Medical Disclaimer</AlertTitle>
+        <AlertTitle className="text-lg">{t('disclaimerTitle')}</AlertTitle>
         <AlertDescription className="mt-2 space-y-2">
           <p>
-            <strong>This is not medical advice.</strong> RxWatch is an informational tool only.
+            <strong>{t('disclaimerNotMedical')}</strong> {t('disclaimerText')}
           </p>
           <p>
-            Always consult your pharmacist, doctor, or other qualified healthcare professional
-            before making any changes to your medications.
+            {t('disclaimerConsult')}
           </p>
           <p>
-            Alternative medication suggestions require verification by a healthcare professional.
-            Do not switch medications without professional guidance.
+            {t('disclaimerAlternatives')}
           </p>
         </AlertDescription>
       </Alert>
@@ -70,27 +82,24 @@ export default function AboutPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Heart className="h-5 w-5 text-primary" />
-            What is RxWatch?
+            {t('whatIsTitle')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p>
-            RxWatch is a free, open-source tool that helps Canadians stay informed about
-            drug shortages affecting medications they depend on. We aggregate data from
-            official government sources and present it in an easy-to-understand format.
+            {t('whatIsDesc1')}
           </p>
           <p>
-            Our goal is to help patients, caregivers, and healthcare providers:
+            {t('whatIsGoal')}
           </p>
           <ul className="list-disc list-inside space-y-1 ml-2">
-            <li>Check if a medication is currently in shortage</li>
-            <li>Find potential therapeutic alternatives (for discussion with your doctor)</li>
-            <li>Track when shortages are resolved</li>
-            <li>Understand which medications are being discontinued</li>
+            <li>{t('whatIsCheck')}</li>
+            <li>{t('whatIsFind')}</li>
+            <li>{t('whatIsTrack')}</li>
+            <li>{t('whatIsUnderstand')}</li>
           </ul>
           <p className="text-sm text-muted-foreground">
-            RxWatch is not affiliated with Health Canada, Drug Shortages Canada, or any
-            pharmaceutical company.
+            {t('whatIsNotAffiliated')}
           </p>
         </CardContent>
       </Card>
@@ -100,16 +109,16 @@ export default function AboutPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Database className="h-5 w-5 text-primary" />
-            Data Sources
+            {t('dataSourcesTitle')}
           </CardTitle>
           <CardDescription>
-            All data comes from official Canadian government and regulatory sources
+            {t('dataSourcesDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6 md:grid-cols-2">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold">Drug Shortages Canada (DSC)</h3>
+              <h3 className="font-semibold">{t('dscTitle')}</h3>
               <a
                 href="https://www.drugshortagescanada.ca"
                 target="_blank"
@@ -120,18 +129,16 @@ export default function AboutPage() {
               </a>
             </div>
             <p className="text-sm text-muted-foreground">
-              The mandatory reporting system for drug shortages and discontinuations in Canada.
-              Pharmaceutical companies are legally required to report shortages to this database.
+              {t('dscDesc1')}
             </p>
             <p className="text-sm text-muted-foreground">
-              Shortage reports, discontinuation notices, status updates,
-              company information, shortage reasons, and estimated resolution dates.
+              {t('dscDesc2')}
             </p>
           </div>
 
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold">Health Canada Drug Product Database (DPD)</h3>
+              <h3 className="font-semibold">{t('dpdTitle')}</h3>
               <a
                 href="https://www.canada.ca/en/health-canada/services/drugs-health-products/drug-products/drug-product-database.html"
                 target="_blank"
@@ -142,12 +149,10 @@ export default function AboutPage() {
               </a>
             </div>
             <p className="text-sm text-muted-foreground">
-              The official database of all drugs authorized for sale in Canada.
-              Contains detailed information about drug formulations, ingredients, and manufacturers.
+              {t('dpdDesc1')}
             </p>
             <p className="text-sm text-muted-foreground">
-              Drug identification numbers (DINs), active ingredients, dosage forms, routes of administration,
-              therapeutic classifications (ATC codes), and manufacturer information.
+              {t('dpdDesc2')}
             </p>
           </div>
         </CardContent>
@@ -158,30 +163,29 @@ export default function AboutPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <RefreshCw className="h-5 w-5 text-primary" />
-            Data Freshness
+            {t('dataFreshnessTitle')}
           </CardTitle>
           <CardDescription>
-            How often we update our data
+            {t('dataFreshnessDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1">
-              <p className="font-medium">Shortage Reports</p>
+              <p className="font-medium">{t('shortageReports')}</p>
               <p className="text-sm text-muted-foreground">
-                Updated every <strong>15 minutes</strong> from Drug Shortages Canada API
+                {t('shortageReportsFreq')}
               </p>
             </div>
             <div className="space-y-1">
-              <p className="font-medium">Drug Catalog</p>
+              <p className="font-medium">{t('drugCatalog')}</p>
               <p className="text-sm text-muted-foreground">
-                Updated <strong>daily</strong> from Health Canada Drug Product Database
+                {t('drugCatalogFreq')}
               </p>
             </div>
           </div>
           <p className="text-sm text-muted-foreground mt-4">
-            The last sync time is displayed in the header of every page.
-            If you notice stale data, please let us know.
+            {t('dataFreshnessNote')}
           </p>
         </CardContent>
       </Card>
@@ -191,76 +195,73 @@ export default function AboutPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-primary" />
-            Understanding Shortage Reports
+            {t('understandingTitle')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-3">
-            <h3 className="font-semibold">Report Statuses</h3>
+            <h3 className="font-semibold">{t('reportStatusesTitle')}</h3>
             <div className="grid gap-2">
               <div className="flex items-start gap-2">
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 shrink-0">
-                  Active
+                  {t('statusActive')}
                 </span>
-                <span className="text-sm">Drug is currently in shortage</span>
+                <span className="text-sm">{t('statusActiveDesc')}</span>
               </div>
               <div className="flex items-start gap-2">
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 shrink-0">
-                  Anticipated
+                  {t('statusAnticipated')}
                 </span>
-                <span className="text-sm">Shortage expected to occur soon</span>
+                <span className="text-sm">{t('statusAnticipatedDesc')}</span>
               </div>
               <div className="flex items-start gap-2">
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 shrink-0">
-                  To Be Discontinued
+                  {t('statusToBeDisc')}
                 </span>
-                <span className="text-sm">Drug will be permanently removed from market</span>
+                <span className="text-sm">{t('statusToBeDiscDesc')}</span>
               </div>
               <div className="flex items-start gap-2">
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200 shrink-0">
-                  Discontinued
+                  {t('statusDiscontinued')}
                 </span>
-                <span className="text-sm">Drug has been permanently removed from market</span>
+                <span className="text-sm">{t('statusDiscontinuedDesc')}</span>
               </div>
               <div className="flex items-start gap-2">
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 shrink-0">
-                  Resolved
+                  {t('statusResolved')}
                 </span>
-                <span className="text-sm">Shortage has ended, drug is available again</span>
+                <span className="text-sm">{t('statusResolvedDesc')}</span>
               </div>
             </div>
           </div>
 
           <div className="space-y-3">
-            <h3 className="font-semibold">Tier 3 Critical Shortages</h3>
+            <h3 className="font-semibold">{t('tier3Title')}</h3>
             <p className="text-sm text-muted-foreground">
-              Tier 3 shortages are the most critical. These affect drugs where:
+              {t('tier3Desc')}
             </p>
             <ul className="list-disc list-inside space-y-1 ml-2 text-sm text-muted-foreground">
-              <li>No therapeutic alternatives exist</li>
-              <li>The drug is essential for life-threatening conditions</li>
-              <li>Interruption could cause serious harm to patients</li>
+              <li>{t('tier3NoAlternatives')}</li>
+              <li>{t('tier3Essential')}</li>
+              <li>{t('tier3Harm')}</li>
             </ul>
           </div>
 
           <div className="space-y-3">
-            <h3 className="font-semibold">Understanding Alternatives</h3>
+            <h3 className="font-semibold">{t('alternativesTitle')}</h3>
             <p className="text-sm text-muted-foreground">
-              When viewing a drug, we show two types of potential alternatives:
+              {t('alternativesDesc')}
             </p>
             <ul className="list-disc list-inside space-y-1 ml-2 text-sm text-muted-foreground">
               <li>
-                <strong>Same Ingredient:</strong> Other products containing the same active
-                ingredient (different manufacturer, strength, or form)
+                <strong>{t('sameIngredient')}</strong> {t('sameIngredientDesc')}
               </li>
               <li>
-                <strong>Same Therapeutic Class:</strong> Different drugs that may treat the same
-                condition (same ATC classification)
+                <strong>{t('sameClass')}</strong> {t('sameClassDesc')}
               </li>
             </ul>
             <p className="text-sm font-medium text-orange-600 dark:text-orange-400">
-              These are suggestions only. Always consult your healthcare provider before
-              switching to an alternative medication.
+              {t('alternativesWarning')}
             </p>
           </div>
         </CardContent>
@@ -269,16 +270,14 @@ export default function AboutPage() {
       {/* Privacy */}
       <Card>
         <CardHeader>
-          <CardTitle>Privacy</CardTitle>
+          <CardTitle>{t('privacyTitle')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           <p className="text-sm text-muted-foreground">
-            RxWatch does not collect personal health information. We do not require accounts
-            or logins to use the service. Your searches are not tracked or stored.
+            {t('privacyDesc1')}
           </p>
           <p className="text-sm text-muted-foreground">
-            We use basic analytics to understand how the service is used and improve it,
-            but this data is anonymized and aggregated.
+            {t('privacyDesc2')}
           </p>
         </CardContent>
       </Card>
@@ -286,11 +285,11 @@ export default function AboutPage() {
       {/* Contact */}
       <Card>
         <CardHeader>
-          <CardTitle>Contact & Feedback</CardTitle>
+          <CardTitle>{t('contactTitle')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            RxWatch is an open-source project. We welcome feedback, bug reports, and contributions.
+            {t('contactDesc')}
           </p>
           <div className="flex flex-wrap gap-3">
             <a
@@ -300,13 +299,13 @@ export default function AboutPage() {
             >
               <Button variant="outline" className="gap-2">
                 <Github className="h-4 w-4" />
-                Report an Issue
+                {t('reportIssue')}
               </Button>
             </a>
             <a href="mailto:info@rxwatch.ca">
               <Button variant="outline" className="gap-2">
                 <Mail className="h-4 w-4" />
-                Send Feedback
+                {t('sendFeedback')}
               </Button>
             </a>
           </div>
@@ -316,11 +315,10 @@ export default function AboutPage() {
       {/* Final Disclaimer */}
       <div className="border-t pt-6 space-y-2">
         <p className="text-sm text-muted-foreground text-center">
-          RxWatch is provided &ldquo;as is&rdquo; without warranty of any kind. While we strive
-          for accuracy, we cannot guarantee the completeness or timeliness of the data.
+          {t('finalDisclaimer1')}
         </p>
         <p className="text-sm text-muted-foreground text-center">
-          For official information, always refer to{' '}
+          {t('finalDisclaimer2')}{' '}
           <a
             href="https://www.drugshortagescanada.ca"
             target="_blank"
@@ -329,7 +327,7 @@ export default function AboutPage() {
           >
             Drug Shortages Canada
           </a>
-          {' '}and{' '}
+          {' '}{t('and')}{' '}
           <a
             href="https://www.canada.ca/en/health-canada.html"
             target="_blank"
@@ -344,8 +342,8 @@ export default function AboutPage() {
 
       {/* Navigation */}
       <div className="flex justify-center pb-4">
-        <Link href="/">
-          <Button variant="outline">Back to Home</Button>
+        <Link href={`/${locale}`}>
+          <Button variant="outline">{tCommon('backToHome')}</Button>
         </Link>
       </div>
     </div>

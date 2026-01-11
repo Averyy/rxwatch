@@ -21,7 +21,9 @@
       "Bash(npm run type-check:*)",
       "Bash(npm ls:*)",
       "Bash(yarn sync-dsc:*)",
-      "Bash(git diff:*)"
+      "Bash(git diff:*)",
+      "Bash(tail:*)",
+      "Bash(head:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

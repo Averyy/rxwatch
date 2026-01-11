@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://rxwatch.ca'
-const URLS_PER_SITEMAP = 40000
+const URLS_PER_SITEMAP = 20000 // Must match app/sitemap.ts
 
 export async function GET() {
   const [drugCount] = await db
