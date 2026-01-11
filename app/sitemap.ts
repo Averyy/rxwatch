@@ -3,6 +3,9 @@ import { db } from '@/db'
 import { drugs, reports } from '@/db/schema'
 import { sql } from 'drizzle-orm'
 
+// Force dynamic generation - sitemap needs live DB data
+export const dynamic = 'force-dynamic'
+
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://rxwatch.ca'
 const URLS_PER_SITEMAP = 40000 // Stay under 50k limit
 
@@ -18,17 +21,22 @@ const staticPages = [
 ]
 
 async function getCounts() {
-  const [drugCount] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(drugs)
+  try {
+    const [drugCount] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(drugs)
 
-  const [reportCount] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(reports)
+    const [reportCount] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(reports)
 
-  return {
-    drugs: drugCount?.count || 0,
-    reports: reportCount?.count || 0,
+    return {
+      drugs: drugCount?.count || 0,
+      reports: reportCount?.count || 0,
+    }
+  } catch {
+    // Database not available (e.g., during Docker build)
+    return { drugs: 0, reports: 0 }
   }
 }
 
