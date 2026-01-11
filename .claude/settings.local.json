@@ -20,12 +20,15 @@
       "mcp__shadcn__search_items_in_registries",
       "Bash(npm run type-check:*)",
       "Bash(npm ls:*)",
-      "Bash(yarn sync-dsc:*)"
+      "Bash(yarn sync-dsc:*)",
+      "Bash(git diff:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "fetchaller",
     "shadcn"
-  ]
+  ],
+  "outputStyle": "default",
+  "spinnerTipsEnabled": false
 }
