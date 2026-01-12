@@ -1,0 +1,153 @@
+name: Rollback Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Docker image tag to rollback to (e.g., main-abc1234-20240115 or "previous" for last known good)'
+        required: true
+        default: 'previous'
+      reason:
+        description: 'Reason for rollback'
+        required: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate inputs
+        run: |
+          echo "Rolling back to: ${{ github.event.inputs.image_tag }}"
+          echo "Reason: ${{ github.event.inputs.reason }}"
+
+      - name: Rollback to previous or specific tag
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 10m
+          script: |
+            set -e
+            cd /root/rxwatch
+
+            echo "=== RxWatch Rollback ==="
+            echo "Reason: ${{ github.event.inputs.reason }}"
+            echo ""
+
+            # Load env
+            set -a
+            if ! source .env.local; then
+              echo "ERROR: Failed to parse .env.local"
+              exit 1
+            fi
+            set +a
+
+            IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+
+            if [ "$IMAGE_TAG" = "previous" ]; then
+              echo "Finding previous image..."
+
+              # List local images sorted by creation date (newest first), excluding 'latest'
+              TAGS=$(docker images ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} \
+                --format "{{.CreatedAt}}\t{{.Tag}}" | \
+                grep -v latest | \
+                sort -r | \
+                head -5 | \
+                cut -f2)
+
+              if [ -z "$TAGS" ]; then
+                echo "No local images found, trying to pull from registry..."
+                # Try pulling with a known tag pattern (most recent by date)
+                # List recent tags from ghcr.io (requires gh cli)
+                if command -v gh &> /dev/null; then
+                  echo "Querying registry for available tags..."
+                  REGISTRY_TAGS=$(gh api /user/packages/container/rxwatch/versions \
+                    --jq '.[].metadata.container.tags[]' 2>/dev/null | \
+                    grep -v latest | head -5 || true)
+                  if [ -n "$REGISTRY_TAGS" ]; then
+                    IMAGE_TAG=$(echo "$REGISTRY_TAGS" | head -1)
+                    echo "Found tag from registry: $IMAGE_TAG"
+                  fi
+                fi
+
+                if [ -z "$IMAGE_TAG" ] || [ "$IMAGE_TAG" = "previous" ]; then
+                  echo "ERROR: No previous images found locally or in registry."
+                  echo "Please specify an explicit image tag."
+                  exit 1
+                fi
+              else
+                IMAGE_TAG=$(echo "$TAGS" | head -1)
+                echo "Using previous image: $IMAGE_TAG"
+              fi
+            fi
+
+            FULL_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}"
+            echo "Rolling back to: $FULL_IMAGE"
+
+            # Pull the specific image
+            echo ""
+            echo "1. Pulling image..."
+            if ! docker pull "$FULL_IMAGE"; then
+              echo "ERROR: Failed to pull image."
+              echo "Available local images:"
+              docker images ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} --format "{{.Tag}} {{.CreatedAt}}"
+              exit 1
+            fi
+
+            # Use environment variable override instead of modifying docker-compose.yml
+            # This preserves the original file and avoids sed escaping issues
+            echo ""
+            echo "2. Stopping current containers..."
+            docker compose -f docker-compose.prod.yml down app || true
+
+            echo ""
+            echo "3. Starting with rollback image..."
+            # Override the image using docker compose's --scale and image override
+            RXWATCH_IMAGE="$FULL_IMAGE" docker compose -f docker-compose.prod.yml up -d
+
+            # Health check with proper failure handling
+            echo ""
+            echo "4. Verifying rollback..."
+            sleep 10
+
+            HEALTH_OK=false
+            for i in $(seq 1 12); do
+              if curl -sf http://localhost:5000/api/health > /dev/null 2>&1; then
+                echo "   App is healthy!"
+                HEALTH_OK=true
+                break
+              fi
+              echo "   Waiting... ($i/12)"
+              sleep 5
+            done
+
+            if [ "$HEALTH_OK" = false ]; then
+              echo ""
+              echo "ERROR: Health check failed after rollback"
+              docker compose -f docker-compose.prod.yml logs --tail=50 app
+              exit 1
+            fi
+
+            echo ""
+            echo "=== Rollback Complete ==="
+            docker compose -f docker-compose.prod.yml ps
+
+            # Record the rollback
+            echo "$(date -Iseconds) Rolled back to $IMAGE_TAG - Reason: ${{ github.event.inputs.reason }}" >> /root/rxwatch/rollback.log
+
+      - name: Generate rollback summary
+        run: |
+          echo "## Rollback Completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Target:** ${{ github.event.inputs.image_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Reason:** ${{ github.event.inputs.reason }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo ":warning: Remember to fix the issue and redeploy!" >> $GITHUB_STEP_SUMMARY

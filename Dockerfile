@@ -1,5 +1,6 @@
 # Multi-stage build for Next.js production
-FROM node:20-alpine AS base
+# Pin to specific Node.js LTS version for reproducible builds
+FROM node:20.18-alpine3.20 AS base
 
 # Install dependencies only when needed
 FROM base AS deps
@@ -31,8 +32,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Install psql for database connection checks
-RUN apk add --no-cache postgresql-client
+# Install psql for database checks, wget for healthcheck
+RUN apk add --no-cache postgresql-client wget
 
 # Copy Next.js standalone build
 COPY --from=builder /app/public ./public

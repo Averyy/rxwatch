@@ -131,7 +131,7 @@ export class DSCClient {
   }
 
   /**
-   * Make authenticated GET request with auto-retry on auth failure
+   * Make authenticated GET request with auto-retry on auth failure and timeouts
    */
   private async apiGet<T>(path: string, params: Record<string, string> = {}): Promise<T> {
     if (!this.authToken) {
@@ -141,24 +141,55 @@ export class DSCClient {
     const url = new URL(`${DSC_API_URL}/${path}`);
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
 
-    let response = await fetchWithTimeout(url.toString(), {
-      headers: { 'auth-token': this.authToken! },
-    });
+    // Retry with exponential backoff on timeout/network errors
+    const MAX_RETRIES = 3;
+    let lastError: Error | null = null;
 
-    // Retry with account rotation on auth/rate limit errors
-    if (response.status === 401 || response.status === 403 || response.status === 429) {
-      console.log(`  Got ${response.status}, rotating account...`);
-      await this.rotateAccount();
-      response = await fetchWithTimeout(url.toString(), {
-        headers: { 'auth-token': this.authToken! },
-      });
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        let response = await fetchWithTimeout(url.toString(), {
+          headers: { 'auth-token': this.authToken! },
+        });
+
+        // Retry with account rotation on auth/rate limit errors
+        if (response.status === 401 || response.status === 403 || response.status === 429) {
+          console.log(`  Got ${response.status}, rotating account...`);
+          await this.rotateAccount();
+          response = await fetchWithTimeout(url.toString(), {
+            headers: { 'auth-token': this.authToken! },
+          });
+        }
+
+        if (!response.ok) {
+          throw new Error(`API request failed: ${path} - ${response.status}`);
+        }
+
+        // Handle JSON parse errors
+        const text = await response.text();
+        try {
+          return JSON.parse(text) as T;
+        } catch (parseError) {
+          throw new Error(`JSON parse error for ${path}: ${(parseError as Error).message}`);
+        }
+      } catch (e: any) {
+        lastError = e;
+        const isTimeout = e.name === 'AbortError' || e.message?.includes('abort');
+        const isNetworkError = e.message?.includes('fetch') || e.message?.includes('network');
+
+        if ((isTimeout || isNetworkError) && attempt < MAX_RETRIES) {
+          // Exponential backoff with jitter
+          const baseDelay = Math.pow(2, attempt) * 1000;
+          const jitter = Math.random() * 1000;
+          const delay = baseDelay + jitter;
+          console.log(`  Retry ${attempt}/${MAX_RETRIES} for ${path} (${e.message}), waiting ${Math.round(delay)}ms...`);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+        throw e;
+      }
     }
 
-    if (!response.ok) {
-      throw new Error(`API request failed: ${path} - ${response.status}`);
-    }
-
-    return response.json();
+    throw lastError || new Error(`Request failed after ${MAX_RETRIES} attempts`);
   }
 
   /**

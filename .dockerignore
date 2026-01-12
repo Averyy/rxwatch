@@ -1,0 +1,53 @@
+# Git
+.git
+.gitignore
+
+# GitHub
+.github
+
+# Dependencies (rebuilt in Docker)
+node_modules
+
+# Environment files (secrets!)
+.env
+.env.*
+!.env.example
+
+# Build outputs
+.next
+out
+dist
+build
+
+# Database
+db/dumps
+*.sql
+
+# Cache and temp files
+.dpd-sync-state.json
+.dpd-temp
+*.log
+logs
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+!README.md
+
+# Testing
+coverage
+.nyc_output
+
+# Development files
+docker-compose.yml
+docker-compose.dev.yml
+CLAUDE.md

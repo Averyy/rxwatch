@@ -42,6 +42,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { sql } from 'drizzle-orm';
 import { drugs, type NewDrug } from '../db/schema';
+import { notifyError, notifySuccess } from '../lib/notify';
 
 config({ path: '.env.local' });
 
@@ -104,10 +105,20 @@ async function fetchJSON<T>(url: string, retries = 3): Promise<T> {
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
-      return await response.json();
+      // Handle JSON parse errors separately
+      const text = await response.text();
+      try {
+        return JSON.parse(text) as T;
+      } catch (parseError) {
+        throw new Error(`JSON parse error: ${(parseError as Error).message}`);
+      }
     } catch (e: any) {
       if (attempt < retries) {
-        const delay = attempt * 2000;
+        // Exponential backoff with jitter: 2^attempt * 1000ms + random 0-1000ms
+        const baseDelay = Math.pow(2, attempt) * 1000;
+        const jitter = Math.random() * 1000;
+        const delay = baseDelay + jitter;
+        console.warn(`  Retry ${attempt}/${retries} for ${url}: ${e.message}`);
         await new Promise(r => setTimeout(r, delay));
         continue;
       }
@@ -507,15 +518,29 @@ async function runIncremental(db: ReturnType<typeof drizzle>, force: boolean) {
   // Note: Must disable gzip (Accept-Encoding: identity) or server won't send Content-Length
   let currentContentLength = 0;
   console.log('Checking Content-Length via HEAD request...');
-  try {
-    const headResponse = await fetch(DRUG_LIST_URL, {
-      method: 'HEAD',
-      headers: { 'Accept-Encoding': 'identity' },
-    });
-    currentContentLength = parseInt(headResponse.headers.get('content-length') || '0', 10);
-    console.log(`  Current Content-Length: ${currentContentLength.toLocaleString()} bytes`);
-  } catch (e) {
-    console.log('  HEAD request failed, will proceed with full sync');
+
+  // Retry HEAD request up to 3 times
+  for (let headAttempt = 1; headAttempt <= 3; headAttempt++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout for HEAD
+      const headResponse = await fetch(DRUG_LIST_URL, {
+        method: 'HEAD',
+        headers: { 'Accept-Encoding': 'identity' },
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      currentContentLength = parseInt(headResponse.headers.get('content-length') || '0', 10);
+      console.log(`  Current Content-Length: ${currentContentLength.toLocaleString()} bytes`);
+      break;
+    } catch (e) {
+      if (headAttempt < 3) {
+        console.log(`  HEAD request failed (attempt ${headAttempt}/3), retrying...`);
+        await new Promise(r => setTimeout(r, 2000));
+      } else {
+        console.log('  HEAD request failed after 3 attempts, will proceed with full sync');
+      }
+    }
   }
 
   if (!force && prevState?.lastContentLength && prevState?.lastFullSyncTimestamp && currentContentLength > 0) {
@@ -550,7 +575,17 @@ async function runIncremental(db: ReturnType<typeof drizzle>, force: boolean) {
   // Fetch all drugs from API
   console.log('\nFetching drug list from API (~14MB)...');
   const response = await fetchWithTimeout(DRUG_LIST_URL);
-  const apiDrugs = await response.json() as APIDrug[];
+  if (!response.ok) {
+    throw new Error(`Failed to fetch drug list: HTTP ${response.status}`);
+  }
+  // Handle JSON parse errors
+  const responseText = await response.text();
+  let apiDrugs: APIDrug[];
+  try {
+    apiDrugs = JSON.parse(responseText) as APIDrug[];
+  } catch (parseError) {
+    throw new Error(`Failed to parse drug list JSON: ${(parseError as Error).message}`);
+  }
   console.log(`Fetched ${apiDrugs.length} drugs\n`);
 
   // Get all existing drugs from DB
@@ -697,7 +732,16 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error('Fatal error:', e);
-  process.exit(1);
-});
+main()
+  .then(() => {
+    // Notify success
+    notifySuccess('sync-dpd', { status: 'completed' });
+  })
+  .catch(async (e) => {
+    console.error('Fatal error:', e);
+
+    // Notify error
+    await notifyError('sync-dpd', e instanceof Error ? e : new Error(String(e)));
+
+    process.exit(1);
+  });

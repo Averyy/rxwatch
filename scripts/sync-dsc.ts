@@ -22,6 +22,7 @@ import postgres from 'postgres';
 import { sql, eq, inArray, and, or, isNull, desc, max } from 'drizzle-orm';
 import { DSCClient, type DSCReport, type DSCSearchParams } from '../lib/dsc-api';
 import { drugs, reports, type NewDrug, type NewReport } from '../db/schema';
+import { notifyError, notifySuccess } from '../lib/notify';
 
 config({ path: '.env.local' });
 
@@ -559,8 +560,22 @@ async function main() {
     console.log(`Resolved reports: ${stats.resolvedReports}`);
     console.log(`Drugs updated: ${stats.drugsUpdated}`);
 
+    // Notify success (only logs, no webhook for success)
+    await notifySuccess('sync-dsc', {
+      duration,
+      apiCalls: stats.apiCalls,
+      newReports: stats.newReports,
+      updatedReports: stats.updatedReports,
+      resolvedReports: stats.resolvedReports,
+      drugsUpdated: stats.drugsUpdated,
+    });
+
   } catch (e) {
     console.error('\nFatal error:', e);
+
+    // Notify error (logs + webhook if configured)
+    await notifyError('sync-dsc', e instanceof Error ? e : new Error(String(e)));
+
     process.exit(1);
   } finally {
     await pgClient.end();
