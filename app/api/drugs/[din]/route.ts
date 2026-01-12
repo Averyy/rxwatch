@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db, drugs, reports } from '@/db';
 import { eq, desc } from 'drizzle-orm';
+import { getFromCache, setInCache } from '@/lib/api-cache';
+
+const CACHE_NAMESPACE = 'drug-detail';
 
 /**
  * GET /api/drugs/[din]
@@ -19,6 +22,17 @@ export async function GET(
         { error: 'Invalid DIN format. Must be 8 digits.' },
         { status: 400 }
       );
+    }
+
+    // Check cache first
+    const cached = getFromCache<{ drug: unknown; reports: unknown[]; reportCount: number }>(CACHE_NAMESPACE, din);
+    if (cached) {
+      return NextResponse.json(cached, {
+        headers: {
+          'Cache-Control': 'public, max-age=900, stale-while-revalidate=60',
+          'X-Cache': 'HIT',
+        },
+      });
     }
 
     // Get drug details
@@ -57,12 +71,20 @@ export async function GET(
       .where(eq(reports.din, din))
       .orderBy(desc(reports.apiUpdatedDate));
 
-    return NextResponse.json({
+    const responseData = {
       drug,
       reports: drugReports,
       reportCount: drugReports.length,
-    }, {
-      headers: { 'Cache-Control': 'public, max-age=900' }, // 15 min
+    };
+
+    // Store in cache
+    setInCache(CACHE_NAMESPACE, din, responseData);
+
+    return NextResponse.json(responseData, {
+      headers: {
+        'Cache-Control': 'public, max-age=900, stale-while-revalidate=60',
+        'X-Cache': 'MISS',
+      },
     });
   } catch (error) {
     console.error('Error fetching drug:', error);

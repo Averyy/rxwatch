@@ -10,7 +10,7 @@ interface CacheEntry<T> {
 }
 
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
-const MAX_CACHE_ENTRIES = 50; // Limit memory usage
+const MAX_CACHE_ENTRIES = 200; // Limit memory usage
 
 // Separate caches for different endpoints
 const caches = new Map<string, Map<string, CacheEntry<unknown>>>();

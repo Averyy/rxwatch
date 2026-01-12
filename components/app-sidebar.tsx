@@ -166,9 +166,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   tooltip={theme === "dark" ? t("lightMode") : t("darkMode")}
                   onClick={toggleTheme}
                   className="cursor-pointer"
+                  aria-label={theme === "dark" ? t("lightMode") : t("darkMode")}
                 >
-                  <Sun className="dark:hidden" />
-                  <Moon className="hidden dark:block" />
+                  <Sun className="dark:hidden" aria-hidden="true" />
+                  <Moon className="hidden dark:block" aria-hidden="true" />
                   <span className="dark:hidden">{t("lightMode")}</span>
                   <span className="hidden dark:inline">{t("darkMode")}</span>
                 </SidebarMenuButton>

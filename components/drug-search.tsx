@@ -313,6 +313,7 @@ export function DrugSearch({
             onBlur={() => setTimeout(() => setShowResults(false), 200)}
             onKeyDown={handleKeyDown}
             disabled={isNavigating}
+            aria-label={searchPlaceholder}
             aria-expanded={showResults}
             aria-haspopup="listbox"
             aria-controls="search-results"
@@ -346,6 +347,7 @@ export function DrugSearch({
           ref={dropdownRef}
           id="search-results"
           role="listbox"
+          aria-label={t('results')}
           className={cn(
             'absolute top-full left-0 right-0 mt-2 bg-popover border shadow-lg z-50 overflow-hidden',
             'animate-in fade-in-0 zoom-in-95 duration-150',

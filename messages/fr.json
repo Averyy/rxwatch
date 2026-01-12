@@ -18,6 +18,7 @@
     "english": "English",
     "french": "Français",
     "menu": "Menu",
+    "openMenu": "Ouvrir le menu de navigation",
     "synced": "Sync. {time}",
     "checking": "Vérification...",
     "justNow": "À l'instant",
@@ -60,6 +61,7 @@
     "searchError": "Erreur de recherche",
     "drugs": "Médicaments",
     "reports": "Rapports",
+    "results": "Résultats de recherche",
     "pressEnterHint": "Appuyez sur",
     "toSeeAllResults": "pour tous les résultats",
     "tryDifferent": "Essayez un autre nom de médicament, DIN ou ingrédient"
@@ -518,5 +520,17 @@
   },
   "Footer": {
     "disclaimer": "Ceci n'est pas un avis médical. Consultez toujours votre pharmacien ou médecin."
+  },
+  "ErrorPage": {
+    "title": "Une erreur s'est produite",
+    "description": "Une erreur inattendue s'est produite. Veuillez réessayer.",
+    "tryAgain": "Réessayer",
+    "goHome": "Retour à l'accueil"
+  },
+  "NotFoundPage": {
+    "title": "Page non trouvée",
+    "description": "La page que vous recherchez n'existe pas ou a été déplacée.",
+    "goHome": "Retour à l'accueil",
+    "browseDrugs": "Parcourir les médicaments"
   }
 }

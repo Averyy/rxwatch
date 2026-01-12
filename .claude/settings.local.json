@@ -23,7 +23,11 @@
       "Bash(yarn sync-dsc:*)",
       "Bash(git diff:*)",
       "Bash(tail:*)",
-      "Bash(head:*)"
+      "Bash(head:*)",
+      "mcp__filesystem__list_directory_with_sizes",
+      "Bash(yarn audit:*)",
+      "Bash(xargs cat:*)",
+      "Bash(chmod:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

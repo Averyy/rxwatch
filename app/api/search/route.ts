@@ -9,17 +9,21 @@ import { sql, or, eq, ilike } from 'drizzle-orm';
  * Uses pg_trgm for fuzzy matching on drug names
  * Returns exact DIN matches first, then fuzzy matches
  */
+// Input validation constants
+const MAX_QUERY_LENGTH = 200;
+const MAX_LIMIT = 100;
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const query = searchParams.get('q')?.trim();
-    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
+    const query = searchParams.get('q')?.trim()?.slice(0, MAX_QUERY_LENGTH);
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '20') || 20, 1), MAX_LIMIT);
 
     if (!query || query.length < 2) {
       return NextResponse.json({
         drugs: [],
         reports: [],
-        message: 'Query must be at least 2 characters',
+        message: 'Query must be 2-200 characters',
       });
     }
 

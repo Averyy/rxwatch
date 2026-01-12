@@ -147,6 +147,8 @@ export const drugs = pgTable('drugs', {
   index('drugs_common_name_idx').on(table.commonName),
   index('drugs_company_idx').on(table.company),
   index('drugs_has_reports_idx').on(table.hasReports),
+  index('drugs_current_status_idx').on(table.currentStatus),  // For filtering by shortage status
+  index('drugs_market_status_idx').on(table.marketStatus),    // For filtering marketed drugs
   // Note: GIN indexes for pg_trgm fuzzy search are created via raw SQL migration
   // CREATE INDEX drugs_brand_name_trgm ON drugs USING GIN (brand_name gin_trgm_ops);
   // CREATE INDEX drugs_common_name_trgm ON drugs USING GIN (common_name gin_trgm_ops);
@@ -252,6 +254,7 @@ export const reports = pgTable('reports', {
   index('reports_type_idx').on(table.type),
   index('reports_company_idx').on(table.company),
   index('reports_api_updated_date_idx').on(table.apiUpdatedDate),  // For incremental sync
+  index('reports_tier3_idx').on(table.tier3),  // For filtering Tier 3 critical shortages
 ]);
 
 // ===========================================

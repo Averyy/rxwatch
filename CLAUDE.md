@@ -3,7 +3,7 @@
 Canadian drug shortage lookup + notification tool. Combines Drug Shortages Canada API + Health Canada Drug Product Database for shortage status, alternatives, and push notifications (iOS).
 
 ## What's Not Built Yet
-- [ ] DrugSearch autocomplete dropdown styling
+(Nothing pending for MVP)
 
 ## Database Stats
 | Data | Count |

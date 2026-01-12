@@ -53,8 +53,13 @@ export async function GET(request: Request) {
     const until = searchParams.get('until');
     const createdSince = searchParams.get('created_since');
     const createdUntil = searchParams.get('created_until');
+    // Validate and bound limit parameter
     const limitParam = searchParams.get('limit');
-    const limit = limitParam ? parseInt(limitParam) : undefined;
+    const DEFAULT_LIMIT = 100;
+    const MAX_LIMIT = 10000;
+    const limit = limitParam
+      ? Math.min(Math.max(parseInt(limitParam) || DEFAULT_LIMIT, 1), MAX_LIMIT)
+      : DEFAULT_LIMIT;
 
     // Build query conditions
     const conditions: SQL[] = [];
@@ -106,19 +111,47 @@ export async function GET(request: Request) {
       conditions.push(sql`${reports.lateSubmission} = true`);
     }
 
+    // Validate date parameters (ISO 8601 format: YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss)
+    const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?Z?)?$/;
+
+    const validateDate = (dateStr: string, paramName: string): NextResponse | null => {
+      if (!ISO_DATE_PATTERN.test(dateStr)) {
+        return NextResponse.json(
+          { error: `Invalid ${paramName} format. Use ISO 8601 (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss).` },
+          { status: 400 }
+        );
+      }
+      const parsed = new Date(dateStr);
+      if (isNaN(parsed.getTime())) {
+        return NextResponse.json(
+          { error: `Invalid ${paramName} date value.` },
+          { status: 400 }
+        );
+      }
+      return null;
+    };
+
     if (since) {
+      const error = validateDate(since, 'since');
+      if (error) return error;
       conditions.push(sql`${reports.apiUpdatedDate} >= ${since}::timestamp`);
     }
 
     if (until) {
+      const error = validateDate(until, 'until');
+      if (error) return error;
       conditions.push(sql`${reports.apiUpdatedDate} <= ${until}::timestamp`);
     }
 
     if (createdSince) {
+      const error = validateDate(createdSince, 'created_since');
+      if (error) return error;
       conditions.push(sql`${reports.apiCreatedDate} >= ${createdSince}::timestamp`);
     }
 
     if (createdUntil) {
+      const error = validateDate(createdUntil, 'created_until');
+      if (error) return error;
       conditions.push(sql`${reports.apiCreatedDate} <= ${createdUntil}::timestamp`);
     }
 
@@ -146,7 +179,7 @@ export async function GET(request: Request) {
       .from(reports)
       .where(conditions.length > 0 ? sql.join(conditions, sql` AND `) : undefined)
       .orderBy(desc(reports.apiUpdatedDate))
-      .limit(limit || 100000); // Default to all if no limit specified
+      .limit(limit);
 
     const responseData = {
       rows: result,

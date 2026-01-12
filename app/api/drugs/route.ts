@@ -5,7 +5,9 @@ import { getCacheKey, getFromCache, setInCache } from '@/lib/api-cache';
 
 // Input validation constants
 const MAX_PARAM_LENGTH = 100;
-const ATC_PATTERN = /^[A-Z0-9]{1,7}$/i;
+// ATC codes follow format: Letter(1) + Digits(2) + Letter(1) + Letter(1) + Digits(2) = max 7 chars
+// Allow partial matches for filtering by level (e.g., "N02" for all analgesics)
+const ATC_PATTERN = /^[A-Z](?:\d{2}(?:[A-Z]{1,2}(?:\d{2})?)?)?$/i;
 const CACHE_NAMESPACE = 'drugs';
 
 /**

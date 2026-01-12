@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db, drugs } from '@/db';
 import { eq, ne, and, or, sql, asc } from 'drizzle-orm';
+import { getCacheKey, getFromCache, setInCache } from '@/lib/api-cache';
+
+const CACHE_NAMESPACE = 'alternatives';
 
 /**
  * GET /api/drugs/[din]/alternatives
@@ -28,6 +31,20 @@ export async function GET(
         { error: 'Invalid DIN format. Must be 8 digits.' },
         { status: 400 }
       );
+    }
+
+    // Build cache key from DIN and params
+    const cacheKey = `${din}:${getCacheKey(searchParams)}`;
+
+    // Check cache first
+    const cached = getFromCache<unknown>(CACHE_NAMESPACE, cacheKey);
+    if (cached) {
+      return NextResponse.json(cached, {
+        headers: {
+          'Cache-Control': 'public, max-age=900, stale-while-revalidate=60',
+          'X-Cache': 'HIT',
+        },
+      });
     }
 
     // Get the source drug
@@ -133,7 +150,7 @@ export async function GET(
         .limit(30);
     }
 
-    return NextResponse.json({
+    const responseData = {
       sourceDrug,
       alternatives: {
         // Same ingredient = direct substitutes (generic equivalents)
@@ -147,8 +164,16 @@ export async function GET(
         total: ingredientAlternatives.length + atcAlternatives.length,
       },
       disclaimer: 'Always consult a pharmacist or healthcare provider before substituting medications.',
-    }, {
-      headers: { 'Cache-Control': 'public, max-age=900' }, // 15 min
+    };
+
+    // Store in cache
+    setInCache(CACHE_NAMESPACE, cacheKey, responseData);
+
+    return NextResponse.json(responseData, {
+      headers: {
+        'Cache-Control': 'public, max-age=900, stale-while-revalidate=60',
+        'X-Cache': 'MISS',
+      },
     });
   } catch (error) {
     console.error('Error fetching alternatives:', error);

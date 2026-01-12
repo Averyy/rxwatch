@@ -71,6 +71,12 @@ export default async function LocaleLayout({ children, params }: Props) {
   return (
     <html lang={locale} className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <body className="min-h-screen bg-background font-sans antialiased">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:outline-none"
+        >
+          {locale === 'fr' ? 'Aller au contenu principal' : 'Skip to main content'}
+        </a>
         <NextIntlClientProvider messages={messages} locale={locale}>
           <ThemeProvider
             attribute="class"
@@ -84,7 +90,7 @@ export default async function LocaleLayout({ children, params }: Props) {
                   <AppSidebar />
                   <SidebarInset>
                     <SiteHeader />
-                    <main className="flex-1 p-4 md:p-6 gradient-bg min-h-[calc(100vh-3.5rem)]">
+                    <main id="main-content" className="flex-1 p-4 md:p-6 gradient-bg min-h-[calc(100vh-3.5rem)]">
                       {children}
                     </main>
                   </SidebarInset>
