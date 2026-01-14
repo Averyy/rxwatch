@@ -57,6 +57,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const t = useTranslations("Navigation")
   const tCommon = useTranslations("Common")
   const { setTheme, theme } = useTheme()
+  const [mounted, setMounted] = React.useState(false)
+
+  // Avoid hydration mismatch by only rendering theme-dependent content after mount
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark")
@@ -69,10 +75,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     router.push(`/${newLocale}${pathWithoutLocale}`)
   }
 
-  // Check if path is active (accounting for locale prefix)
+  // Check if path is active (accounting for locale prefix and subpages)
   const isActive = (url: string) => {
     const pathWithoutLocale = pathname.replace(/^\/(en|fr)/, "")
-    return pathWithoutLocale === url || (url === "/" && pathWithoutLocale === "")
+    if (url === "/") {
+      return pathWithoutLocale === "" || pathWithoutLocale === "/"
+    }
+    // Match exact path or subpages (e.g., /drugs matches /drugs/12345)
+    return pathWithoutLocale === url || pathWithoutLocale.startsWith(url + "/")
   }
 
   return (
@@ -163,10 +173,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  tooltip={theme === "dark" ? t("lightMode") : t("darkMode")}
+                  tooltip={mounted ? (theme === "dark" ? t("lightMode") : t("darkMode")) : t("toggleTheme")}
                   onClick={toggleTheme}
                   className="cursor-pointer"
-                  aria-label={theme === "dark" ? t("lightMode") : t("darkMode")}
+                  aria-label={t("toggleTheme")}
                 >
                   <Sun className="dark:hidden" aria-hidden="true" />
                   <Moon className="hidden dark:block" aria-hidden="true" />

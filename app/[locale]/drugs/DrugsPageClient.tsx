@@ -598,6 +598,7 @@ export default function DrugsPageClient() {
             columnDefs={columnDefs}
             defaultColDef={defaultColDef}
             loading={loading}
+            rowClass="cursor-pointer"
             onRowClicked={onRowClicked}
             onFilterChanged={onFilterChanged}
             onGridReady={onFilterChanged}

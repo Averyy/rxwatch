@@ -7,7 +7,6 @@ import { useTranslations, useLocale } from "next-intl"
 import { Menu } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { useMobileNav } from "@/components/mobile-nav"
 import { DrugSearch } from "@/components/drug-search"
@@ -61,7 +60,7 @@ export function SiteHeader() {
         const res = await fetch('/api/health');
         if (res.ok) {
           const data = await res.json();
-          setLastSyncedAt(data.lastSyncedAt);
+          setLastSyncedAt(data.sync?.lastSyncedAt);
         }
       } catch {
         // Health check failed silently - sync indicator will show stale time
@@ -116,8 +115,7 @@ export function SiteHeader() {
         <Menu className="h-5 w-5" aria-hidden="true" />
         <span className="text-sm font-medium">{t('menu')}</span>
       </Button>
-      <SidebarTrigger className="-ml-1 hidden md:flex" />
-      <Separator orientation="vertical" className="mr-2 h-4 hidden md:block" />
+      <SidebarTrigger className="-ml-1 mr-2 hidden md:flex" />
       <DrugSearch
         variant="header"
         placeholder={tSearch('headerPlaceholder')}
