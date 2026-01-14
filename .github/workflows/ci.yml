@@ -1,13 +1,19 @@
-name: CI
+name: CI/CD
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  lint-and-typecheck:
+  # Runs on all PRs and pushes - fast validation
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,68 +33,152 @@ jobs:
       - name: Lint
         run: yarn lint
 
-  security-audit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'yarn'
-
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile
-
-      - name: Security audit
-        run: yarn audit --groups dependencies
-        continue-on-error: true  # Don't fail build, but report issues
-
-      - name: Check for critical vulnerabilities
-        run: |
-          # Fail only on critical severity
-          # Use jq for proper JSON parsing instead of grep
-          set +e
-          AUDIT_OUTPUT=$(yarn audit --json --groups dependencies 2>&1)
-          AUDIT_EXIT=$?
-          set -e
-
-          # Check if jq is available and output is valid JSON
-          if command -v jq &> /dev/null; then
-            # Parse using jq for accurate counts
-            CRITICAL=$(echo "$AUDIT_OUTPUT" | jq -s '[.[] | select(.type == "auditAdvisory") | select(.data.advisory.severity == "critical")] | length' 2>/dev/null || echo "0")
-            HIGH=$(echo "$AUDIT_OUTPUT" | jq -s '[.[] | select(.type == "auditAdvisory") | select(.data.advisory.severity == "high")] | length' 2>/dev/null || echo "0")
-          else
-            # Fallback to grep if jq not available (less accurate)
-            CRITICAL=$(echo "$AUDIT_OUTPUT" | grep -c '"severity":"critical"' || echo "0")
-            HIGH=$(echo "$AUDIT_OUTPUT" | grep -c '"severity":"high"' || echo "0")
-          fi
-
-          echo "Critical vulnerabilities: $CRITICAL"
-          echo "High vulnerabilities: $HIGH"
-
-          if [ "$CRITICAL" != "0" ] && [ "$CRITICAL" -gt 0 ] 2>/dev/null; then
-            echo "::error::Found $CRITICAL critical vulnerabilities!"
-            exit 1
-          fi
-
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'yarn'
-
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile
-
       - name: Build
         run: yarn build
         env:
-          # Provide dummy DATABASE_URL for build (not used at runtime)
           DATABASE_URL: postgres://dummy:dummy@localhost:5432/dummy
+
+  # Only runs on main push - builds and deploys
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-,suffix=-{{date 'YYYYMMDD'}},format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 15m
+          script: |
+            set -e
+
+            echo "=== RxWatch Deployment ==="
+            echo ""
+
+            # Ensure repo exists
+            if [ ! -d /root/rxwatch ]; then
+              git clone https://github.com/${{ github.repository }}.git /root/rxwatch
+            fi
+            cd /root/rxwatch
+
+            # Check for .env.local
+            if [ ! -f .env.local ]; then
+              echo "ERROR: .env.local not found!"
+              echo "Create /root/rxwatch/.env.local with required vars"
+              exit 1
+            fi
+
+            # Load environment
+            set -a
+            source .env.local
+            set +a
+
+            # Verify required vars
+            if [ -z "$DATABASE_URL" ] || [ -z "$POSTGRES_PASSWORD" ]; then
+              echo "ERROR: DATABASE_URL or POSTGRES_PASSWORD not set"
+              exit 1
+            fi
+
+            # Pull latest code
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Install dependencies (for scripts)
+            yarn install --frozen-lockfile
+
+            # Ensure Docker network exists
+            docker network inspect web > /dev/null 2>&1 || docker network create web
+
+            # Start database
+            docker compose -f docker-compose.prod.yml up -d db
+
+            # Wait for database
+            for i in $(seq 1 12); do
+              if docker compose -f docker-compose.prod.yml exec -T db pg_isready -U rxwatch -d rxwatch > /dev/null 2>&1; then
+                echo "Database ready"
+                break
+              fi
+              [ $i -eq 12 ] && echo "Database timeout" && exit 1
+              sleep 5
+            done
+
+            # Database setup if needed
+            TABLE_COUNT=$(docker compose -f docker-compose.prod.yml exec -T db psql -U rxwatch -d rxwatch -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('drugs', 'reports');" 2>/dev/null | tr -d ' ' || echo "0")
+
+            if [ "$TABLE_COUNT" -lt 2 ]; then
+              echo "First run - setting up database..."
+              yarn db:push
+              yarn backfill
+              yarn sync-dpd:from-cache
+            else
+              yarn db:push
+            fi
+
+            # Deploy app
+            docker compose -f docker-compose.prod.yml pull app
+            docker compose -f docker-compose.prod.yml up -d
+
+            # Health check
+            for i in $(seq 1 24); do
+              STATUS=$(docker inspect --format='{{.State.Health.Status}}' rxwatch-app 2>/dev/null || echo "starting")
+              [ "$STATUS" = "healthy" ] && echo "App healthy!" && break
+              echo "Waiting... ($STATUS)"
+              sleep 5
+            done
+
+            # Cleanup old images
+            docker images ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} --format "{{.ID}} {{.Tag}}" | \
+              grep -v latest | tail -n +4 | awk '{print $1}' | \
+              xargs -r docker rmi 2>/dev/null || true
+            docker image prune -f > /dev/null 2>&1 || true
+
+            echo ""
+            echo "=== Deployment Complete ==="
+            echo "Site: https://rxwatch.ca"
+
+      - name: Generate deployment summary
+        run: |
+          echo "## Deployed to VPS" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

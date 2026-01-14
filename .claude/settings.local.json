@@ -27,7 +27,8 @@
       "mcp__filesystem__list_directory_with_sizes",
       "Bash(yarn audit:*)",
       "Bash(xargs cat:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "mcp__playwright__browser_navigate"
     ]
   },
   "enableAllProjectMcpServers": true,
