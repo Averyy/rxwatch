@@ -904,11 +904,6 @@ export default function ReportsPageClient() {
           })()}
         </div>
       </div>
-
-      {/* Legal disclaimer */}
-      <p className="text-xs text-muted-foreground text-center flex-shrink-0">
-        {t('disclaimer')}
-      </p>
     </div>
   );
 }
