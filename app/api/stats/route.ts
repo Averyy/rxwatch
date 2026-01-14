@@ -59,7 +59,7 @@ export async function GET() {
       shortagesByIngredient,
       shortagesByIngredientAllTime,
       shortagesByTherapeuticClass,
-      monthlyTrendOld, // old 12-month trend, replaced
+      _monthlyTrendOld, // old 12-month trend, replaced
       rootCauseBreakdown,
       repeatOffenders,
       tier3ActiveList,

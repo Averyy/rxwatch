@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db, reports } from '@/db';
-import { desc, asc, sql, eq, type SQL } from 'drizzle-orm';
+import { desc, sql, type SQL } from 'drizzle-orm';
 import { getCacheKey, getFromCache, setInCache } from '@/lib/api-cache';
 
 const CACHE_NAMESPACE = 'reports';

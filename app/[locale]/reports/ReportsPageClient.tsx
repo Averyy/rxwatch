@@ -257,35 +257,6 @@ export default function ReportsPageClient() {
   const [customCreatedUntil, setCustomCreatedUntil] = useState<string | null>(getInitialCreatedUntilDate);
   const [displayedRowCount, setDisplayedRowCount] = useState(0);
 
-  // Calculate the since date based on dateRange
-  const getSinceDate = (range: string): string | null => {
-    if (range === 'custom') {
-      return customSince;
-    }
-    const now = new Date();
-    switch (range) {
-      case 'thisYear':
-        return `${now.getFullYear()}-01-01`;
-      case 'lastYear':
-        return `${now.getFullYear() - 1}-01-01`;
-      case '3years':
-        return `${now.getFullYear() - 3}-01-01`;
-      case '5years':
-        return `${now.getFullYear() - 5}-01-01`;
-      case 'all':
-      default:
-        return null;
-    }
-  };
-
-  // Calculate the until date (only for custom range)
-  const getUntilDate = (range: string): string | null => {
-    if (range === 'custom') {
-      return customUntil;
-    }
-    return null;
-  };
-
   // Pagination state
   const [pageSize, setPageSize] = useState(100);
   const [currentPage, setCurrentPage] = useState(0);
@@ -460,6 +431,23 @@ export default function ReportsPageClient() {
   // Fetch reports when dateRange or typeFilter changes (server-side filtering)
   useEffect(() => {
     const abortController = new AbortController();
+
+    // Calculate dates inside effect to avoid dependency issues
+    const getSinceDate = (range: string): string | null => {
+      if (range === 'custom') return customSince;
+      const now = new Date();
+      switch (range) {
+        case 'thisYear': return `${now.getFullYear()}-01-01`;
+        case 'lastYear': return `${now.getFullYear() - 1}-01-01`;
+        case '3years': return `${now.getFullYear() - 3}-01-01`;
+        case '5years': return `${now.getFullYear() - 5}-01-01`;
+        default: return null;
+      }
+    };
+
+    const getUntilDate = (range: string): string | null => {
+      return range === 'custom' ? customUntil : null;
+    };
 
     async function fetchReports() {
       try {

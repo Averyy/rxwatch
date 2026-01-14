@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db, drugs } from '@/db';
-import { eq, ne, and, or, sql, asc } from 'drizzle-orm';
+import { eq, ne, and, sql, asc } from 'drizzle-orm';
 import { getCacheKey, getFromCache, setInCache } from '@/lib/api-cache';
 
 const CACHE_NAMESPACE = 'alternatives';

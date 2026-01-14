@@ -155,7 +155,7 @@ const DRUG_STATUS_CONFIG: Record<string, {
   },
 };
 
-const REPORT_STATUS_CONFIG: Record<string, { label: string; className: string; dotColor: string }> = {
+const _REPORT_STATUS_CONFIG: Record<string, { label: string; className: string; dotColor: string }> = {
   active_confirmed: {
     label: 'Active',
     className: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
@@ -497,7 +497,7 @@ const EVENT_TYPE_CONFIG: Record<string, { label: string; className: string; dotC
   },
 };
 
-function buildTimelineEvents(reports: Report[], t: (key: string, params?: Record<string, string | number | Date>) => string): TimelineEvent[] {
+function buildTimelineEvents(reports: Report[], _t: (key: string, params?: Record<string, string | number | Date>) => string): TimelineEvent[] {
   const events: TimelineEvent[] = [];
 
   for (const report of reports) {

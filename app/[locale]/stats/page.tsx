@@ -38,7 +38,6 @@ import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
 } from '@/components/ui/chart';
 
 // ===========================================
@@ -172,16 +171,9 @@ interface StatsData {
   generatedAt: string;
 }
 
-type TimeRange = 'all' | '5y' | '3y' | '1y';
-
 // ===========================================
 // CHART CONFIGS
 // ===========================================
-
-const trendChartConfig: ChartConfig = {
-  shortages: { label: 'Shortages', color: 'hsl(0, 84%, 60%)' },
-  discontinuations: { label: 'Discontinuations', color: 'hsl(25, 95%, 53%)' },
-};
 
 const yearlyChartConfig: ChartConfig = {
   active_confirmed: { label: 'Active Shortages', color: 'hsl(0, 84%, 60%)' },
@@ -247,7 +239,6 @@ export default function StatsPage() {
   const locale = useLocale();
   const t = useTranslations('StatsPage');
   const tCommon = useTranslations('Common');
-  const tStatus = useTranslations('Status');
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

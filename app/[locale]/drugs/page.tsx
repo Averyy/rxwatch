@@ -1,7 +1,6 @@
 import { Suspense } from 'react';
 import DrugsPageClient from './DrugsPageClient';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Card } from '@/components/ui/card';
 
 // Skeleton loading component for drugs page
 function DrugsPageSkeleton() {
