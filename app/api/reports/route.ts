@@ -54,12 +54,13 @@ export async function GET(request: Request) {
     const createdSince = searchParams.get('created_since');
     const createdUntil = searchParams.get('created_until');
     // Validate and bound limit parameter
+    // No default limit - return all matching rows for client-side filtering
+    // Only limit when explicitly requested (e.g., homepage widgets)
     const limitParam = searchParams.get('limit');
-    const DEFAULT_LIMIT = 100;
-    const MAX_LIMIT = 10000;
+    const MAX_LIMIT = 50000;
     const limit = limitParam
-      ? Math.min(Math.max(parseInt(limitParam) || DEFAULT_LIMIT, 1), MAX_LIMIT)
-      : DEFAULT_LIMIT;
+      ? Math.min(Math.max(parseInt(limitParam) || MAX_LIMIT, 1), MAX_LIMIT)
+      : null; // No limit by default
 
     // Build query conditions
     const conditions: SQL[] = [];
@@ -155,8 +156,18 @@ export async function GET(request: Request) {
       conditions.push(sql`${reports.apiCreatedDate} <= ${createdUntil}::timestamp`);
     }
 
-    // Query all reports (or filtered subset)
-    const result = await db
+    // Build WHERE clause for reuse
+    const whereClause = conditions.length > 0 ? sql.join(conditions, sql` AND `) : undefined;
+
+    // Get total count (for pagination)
+    const countResult = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(reports)
+      .where(whereClause);
+    const totalRows = countResult[0]?.count ?? 0;
+
+    // Query reports (with optional limit)
+    const baseQuery = db
       .select({
         reportId: reports.reportId,
         din: reports.din,
@@ -177,13 +188,14 @@ export async function GET(request: Request) {
         apiUpdatedDate: reports.apiUpdatedDate,
       })
       .from(reports)
-      .where(conditions.length > 0 ? sql.join(conditions, sql` AND `) : undefined)
-      .orderBy(desc(reports.apiUpdatedDate))
-      .limit(limit);
+      .where(whereClause)
+      .orderBy(desc(reports.apiUpdatedDate));
+
+    const result = limit ? await baseQuery.limit(limit) : await baseQuery;
 
     const responseData = {
       rows: result,
-      totalRows: result.length,
+      totalRows,
     };
 
     // Store in cache
