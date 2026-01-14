@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -p 5000",
     "type-check": "tsc --noEmit",
-    "lint": "next lint",
+    "lint": "eslint .",
     "db:start": "docker volume create rxwatch_postgres_data 2>/dev/null || true && docker compose up -d",
     "db:stop": "docker compose down",
     "db:generate": "drizzle-kit generate",
@@ -24,6 +24,8 @@
     "sync-dsc": "tsx scripts/sync-dsc.ts"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@next/eslint-plugin-next": "^16.1.1",
     "@types/node": "^25.0.3",
     "@types/node-cron": "^3.0.11",
     "@types/pg": "^8.16.0",
@@ -31,8 +33,12 @@
     "@types/react-dom": "^19.2.3",
     "dotenv": "^17.2.3",
     "drizzle-kit": "^0.31.8",
+    "eslint": "^9.39.2",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.53.0"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
