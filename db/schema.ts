@@ -258,6 +258,22 @@ export const reports = pgTable('reports', {
 ]);
 
 // ===========================================
+// SYNC METADATA
+// ===========================================
+
+/**
+ * sync_metadata - Tracks when sync jobs run (independent of data changes)
+ * Solves the problem of sync appearing "stale" when no data changed
+ */
+export const syncMetadata = pgTable('sync_metadata', {
+  id: text('id').primaryKey(),  // 'dsc' or 'dpd'
+  lastRunAt: timestamp('last_run_at').notNull(),
+  lastSuccessAt: timestamp('last_success_at'),
+  lastError: text('last_error'),
+  consecutiveFailures: integer('consecutive_failures').default(0),
+});
+
+// ===========================================
 // TYPE EXPORTS
 // ===========================================
 
@@ -265,3 +281,4 @@ export type Drug = typeof drugs.$inferSelect;
 export type NewDrug = typeof drugs.$inferInsert;
 export type Report = typeof reports.$inferSelect;
 export type NewReport = typeof reports.$inferInsert;
+export type SyncMetadata = typeof syncMetadata.$inferSelect;

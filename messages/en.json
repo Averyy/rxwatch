@@ -25,7 +25,10 @@
     "justNow": "Just now",
     "mAgo": "{minutes}m ago",
     "hAgo": "{hours}h ago",
-    "yesterday": "Yesterday"
+    "yesterday": "Yesterday",
+    "syncReports": "Reports (DSC)",
+    "syncDrugs": "Drugs (DPD)",
+    "syncNever": "Never"
   },
   "HomePage": {
     "title": "Canadian Drug Shortage Intelligence",

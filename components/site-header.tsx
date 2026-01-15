@@ -10,6 +10,18 @@ import { Button } from "@/components/ui/button"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { useMobileNav } from "@/components/mobile-nav"
 import { DrugSearch } from "@/components/drug-search"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+
+interface SyncData {
+  lastSyncedAt: string | null
+  dsc: { lastSyncedAt: string | null; status: string }
+  dpd: { lastSyncedAt: string | null; status: string }
+}
 
 export function SiteHeader() {
   const pathname = usePathname()
@@ -17,7 +29,7 @@ export function SiteHeader() {
   const t = useTranslations('Navigation')
   const tSearch = useTranslations('Search')
   const { openMobileNav } = useMobileNav()
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
+  const [syncData, setSyncData] = useState<SyncData | null>(null)
   const [syncText, setSyncText] = useState('')
 
   // Format sync time with translations
@@ -60,7 +72,7 @@ export function SiteHeader() {
         const res = await fetch('/api/health');
         if (res.ok) {
           const data = await res.json();
-          setLastSyncedAt(data.sync?.lastSyncedAt);
+          setSyncData(data.sync);
         }
       } catch {
         // Health check failed silently - sync indicator will show stale time
@@ -75,13 +87,13 @@ export function SiteHeader() {
   // Update display text every 30 seconds (for "Xm ago" to stay fresh)
   useEffect(() => {
     function updateText() {
-      setSyncText(formatSyncTime(lastSyncedAt));
+      setSyncText(formatSyncTime(syncData?.lastSyncedAt || null));
     }
 
     updateText();
     const interval = setInterval(updateText, 30000);
     return () => clearInterval(interval);
-  }, [lastSyncedAt, formatSyncTime]);
+  }, [syncData, formatSyncTime]);
 
   // On homepage, only show mobile menu button (minimal header)
   if (isHomepage) {
@@ -121,10 +133,32 @@ export function SiteHeader() {
         placeholder={tSearch('headerPlaceholder')}
         className="flex-1 max-w-2xl hidden md:block"
       />
-      <div className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-        <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-        <span>{syncText ? t('synced', { time: syncText }) : t('checking')}</span>
-      </div>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground cursor-help">
+              <div className={`h-1.5 w-1.5 rounded-full ${
+                syncData?.dsc?.status === 'stale'
+                  ? 'bg-yellow-500'
+                  : 'bg-primary animate-pulse'
+              }`} />
+              <span>{syncText ? t('synced', { time: syncText }) : t('checking')}</span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" align="end" className="text-xs">
+            <div className="space-y-1">
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">{t('syncReports')}:</span>
+                <span>{syncData?.dsc?.lastSyncedAt ? formatSyncTime(syncData.dsc.lastSyncedAt) : t('syncNever')}</span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">{t('syncDrugs')}:</span>
+                <span>{syncData?.dpd?.lastSyncedAt ? formatSyncTime(syncData.dpd.lastSyncedAt) : t('syncNever')}</span>
+              </div>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </header>
   )
 }

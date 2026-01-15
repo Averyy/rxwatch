@@ -5,6 +5,7 @@
 
 const WINDOW_MS = 60 * 1000; // 1 minute
 const MAX_REQUESTS = 120;
+const MAX_IPS = 10000; // Prevent unbounded memory growth
 
 // Store: IP -> array of request timestamps
 const requests = new Map<string, number[]>();
@@ -13,9 +14,9 @@ const requests = new Map<string, number[]>();
 let lastCleanup = Date.now();
 const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
-function cleanup() {
+function cleanup(force = false) {
   const now = Date.now();
-  if (now - lastCleanup < CLEANUP_INTERVAL) return;
+  if (!force && now - lastCleanup < CLEANUP_INTERVAL) return;
   lastCleanup = now;
 
   const cutoff = now - WINDOW_MS;
@@ -31,6 +32,15 @@ function cleanup() {
 
 export async function rateLimit(ip: string): Promise<{ success: boolean }> {
   cleanup();
+
+  // Force cleanup if we're at max capacity
+  if (requests.size >= MAX_IPS) {
+    cleanup(true);
+    // If still at max after cleanup, reject new IPs
+    if (requests.size >= MAX_IPS && !requests.has(ip)) {
+      return { success: false };
+    }
+  }
 
   const now = Date.now();
   const cutoff = now - WINDOW_MS;

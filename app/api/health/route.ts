@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { db, drugs, reports } from '@/db';
-import { sql, desc } from 'drizzle-orm';
+import { db, drugs, reports, syncMetadata } from '@/db';
+import { sql, eq } from 'drizzle-orm';
 
-// Sync is considered stale if no updates in 30 minutes (DSC syncs every 15 min)
-const STALE_THRESHOLD_MS = 30 * 60 * 1000;
-// Sync is considered critical if no updates in 2 hours
-const CRITICAL_THRESHOLD_MS = 2 * 60 * 60 * 1000;
+// DSC sync is stale if no updates in 30 minutes (syncs every 15 min)
+const DSC_STALE_THRESHOLD_MS = 30 * 60 * 1000;
+// DPD sync is stale if no updates in 36 hours (syncs daily at 4am)
+const DPD_STALE_THRESHOLD_MS = 36 * 60 * 60 * 1000;
 
 /**
  * GET /api/health
@@ -17,39 +17,51 @@ export async function GET() {
     const [drugCount] = await db.select({ count: sql<number>`count(*)` }).from(drugs);
     const [reportCount] = await db.select({ count: sql<number>`count(*)` }).from(reports);
 
-    // Get the most recent sync time (latest updatedAt from reports)
-    const [lastSync] = await db
-      .select({ updatedAt: reports.updatedAt })
-      .from(reports)
-      .orderBy(desc(reports.updatedAt))
-      .limit(1);
+    // Get sync metadata (tracks when cron jobs actually run)
+    const [dscMeta] = await db
+      .select()
+      .from(syncMetadata)
+      .where(eq(syncMetadata.id, 'dsc'));
 
-    const lastSyncedAt = lastSync?.updatedAt || null;
+    const [dpdMeta] = await db
+      .select()
+      .from(syncMetadata)
+      .where(eq(syncMetadata.id, 'dpd'));
+
     const now = new Date();
 
-    // Calculate sync status
-    let syncStatus: 'current' | 'stale' | 'critical' = 'current';
-    let syncWarning: string | null = null;
+    // Calculate DSC sync status from metadata
+    let dscStatus: 'current' | 'stale' | 'never' = 'never';
+    let dscSyncedAt: Date | null = null;
 
-    if (lastSyncedAt) {
-      const syncAge = now.getTime() - lastSyncedAt.getTime();
-
-      if (syncAge > CRITICAL_THRESHOLD_MS) {
-        syncStatus = 'critical';
-        const hours = Math.round(syncAge / (60 * 60 * 1000));
-        syncWarning = `Last sync was ${hours} hours ago. Cron job may have failed.`;
-      } else if (syncAge > STALE_THRESHOLD_MS) {
-        syncStatus = 'stale';
-        const minutes = Math.round(syncAge / (60 * 1000));
-        syncWarning = `Last sync was ${minutes} minutes ago. Data may be outdated.`;
-      }
-    } else {
-      syncStatus = 'critical';
-      syncWarning = 'No sync data found. Database may not be seeded.';
+    if (dscMeta?.lastSuccessAt) {
+      dscSyncedAt = dscMeta.lastSuccessAt;
+      const syncAge = now.getTime() - dscSyncedAt.getTime();
+      dscStatus = syncAge > DSC_STALE_THRESHOLD_MS ? 'stale' : 'current';
     }
 
-    // Determine overall health status
-    const isHealthy = syncStatus !== 'critical';
+    // Calculate DPD sync status from metadata
+    let dpdStatus: 'current' | 'stale' | 'never' = 'never';
+    let dpdSyncedAt: Date | null = null;
+
+    if (dpdMeta?.lastSuccessAt) {
+      dpdSyncedAt = dpdMeta.lastSuccessAt;
+      const syncAge = now.getTime() - dpdSyncedAt.getTime();
+      dpdStatus = syncAge > DPD_STALE_THRESHOLD_MS ? 'stale' : 'current';
+    }
+
+    // Use most recent sync for display (usually DSC since it runs more often)
+    const lastSyncedAt = dscSyncedAt && dpdSyncedAt
+      ? (dscSyncedAt > dpdSyncedAt ? dscSyncedAt : dpdSyncedAt)
+      : dscSyncedAt || dpdSyncedAt;
+
+    // Overall status
+    const isHealthy = dscStatus === 'current' || dscStatus === 'never';
+    const syncWarning = dscStatus === 'stale'
+      ? `Reports sync is stale. Last success: ${Math.round((now.getTime() - (dscSyncedAt?.getTime() || 0)) / 60000)} minutes ago.`
+      : dscMeta?.lastError
+        ? `Last sync error: ${dscMeta.lastError}`
+        : null;
 
     return NextResponse.json({
       status: isHealthy ? 'healthy' : 'degraded',
@@ -60,7 +72,21 @@ export async function GET() {
       },
       sync: {
         lastSyncedAt: lastSyncedAt?.toISOString() || null,
-        status: syncStatus,
+        dsc: {
+          lastSyncedAt: dscSyncedAt?.toISOString() || null,
+          lastRunAt: dscMeta?.lastRunAt?.toISOString() || null,
+          status: dscStatus,
+          consecutiveFailures: dscMeta?.consecutiveFailures || 0,
+          lastError: dscMeta?.lastError || null,
+        },
+        dpd: {
+          lastSyncedAt: dpdSyncedAt?.toISOString() || null,
+          lastRunAt: dpdMeta?.lastRunAt?.toISOString() || null,
+          status: dpdStatus,
+          consecutiveFailures: dpdMeta?.consecutiveFailures || 0,
+          lastError: dpdMeta?.lastError || null,
+        },
+        status: dscStatus === 'never' ? 'current' : dscStatus,
         warning: syncWarning,
       },
       timestamp: now.toISOString(),

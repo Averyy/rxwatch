@@ -32,8 +32,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Install psql for database checks, wget for healthcheck
-RUN apk add --no-cache postgresql-client wget
+# Install psql for database checks, wget for healthcheck, enable yarn
+RUN apk add --no-cache postgresql-client wget && corepack enable
 
 # Copy Next.js standalone build
 COPY --from=builder /app/public ./public
@@ -50,6 +50,10 @@ COPY --from=builder /app/tsconfig.json ./tsconfig.json
 
 # Create cache directory with proper permissions
 RUN mkdir -p .next/cache && chown -R nextjs:nodejs .next
+
+# Create writable directories for cron jobs
+RUN mkdir -p logs && chown -R nextjs:nodejs logs
+RUN touch .dpd-sync-state.json && chown nextjs:nodejs .dpd-sync-state.json
 
 # Copy startup script
 COPY --from=builder /app/scripts/docker-start.sh ./docker-start.sh
