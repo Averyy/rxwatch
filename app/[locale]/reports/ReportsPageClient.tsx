@@ -239,17 +239,10 @@ export default function ReportsPageClient() {
     return searchParams.get('search') || '';
   };
 
-  const getInitialType = (): 'shortage' | 'discontinuation' | 'all' => {
-    const type = searchParams.get('type');
-    if (type === 'shortage' || type === 'discontinuation') return type;
-    return 'all';
-  };
-
   // Filter state - initialized from URL params
   const [searchText, setSearchText] = useState(getInitialSearch);
   const [statusFilters, setStatusFilters] = useState<string[]>(getInitialStatusFilters);
   const [tier3Only, setTier3Only] = useState(getInitialTier3);
-  const [typeFilter, setTypeFilter] = useState<'shortage' | 'discontinuation' | 'all'>(getInitialType);
   const [dateRange, setDateRange] = useState<string>(getInitialDateRange);
   const [customSince, setCustomSince] = useState<string | null>(getInitialSinceDate);
   const [customUntil, setCustomUntil] = useState<string | null>(getInitialUntilDate);
@@ -284,11 +277,6 @@ export default function ReportsPageClient() {
       params.set('tier3', 'true');
     }
 
-    // Add type filter
-    if (typeFilter !== 'all') {
-      params.set('type', typeFilter);
-    }
-
     // Add date range (only if not default)
     if (dateRange !== '3years') {
       params.set('range', dateRange);
@@ -318,7 +306,7 @@ export default function ReportsPageClient() {
     // Update URL without adding to history
     const newUrl = params.toString() ? `/${locale}/reports?${params.toString()}` : `/${locale}/reports`;
     router.replace(newUrl, { scroll: false });
-  }, [statusFilters, tier3Only, typeFilter, dateRange, searchText, customSince, customUntil, customCreatedSince, customCreatedUntil, router, locale]);
+  }, [statusFilters, tier3Only, dateRange, searchText, customSince, customUntil, customCreatedSince, customCreatedUntil, router, locale]);
 
   // Column definitions
   const columnDefs = useMemo<ColDef<Report>[]>(() => [
@@ -428,7 +416,7 @@ export default function ReportsPageClient() {
     resizable: true,
   }), []);
 
-  // Fetch reports when dateRange or typeFilter changes (server-side filtering)
+  // Fetch reports when dateRange changes (server-side filtering)
   useEffect(() => {
     const abortController = new AbortController();
 
@@ -460,7 +448,6 @@ export default function ReportsPageClient() {
         // Also pass created date filters when in custom mode
         if (customCreatedSince) params.set('created_since', customCreatedSince);
         if (customCreatedUntil) params.set('created_until', customCreatedUntil);
-        if (typeFilter !== 'all') params.set('type', typeFilter);
         const url = `/api/reports${params.toString() ? '?' + params.toString() : ''}`;
         const response = await fetch(url, {
           signal: abortController.signal,
@@ -491,7 +478,7 @@ export default function ReportsPageClient() {
     return () => {
       abortController.abort();
     };
-  }, [dateRange, typeFilter, customSince, customUntil, customCreatedSince, customCreatedUntil]);
+  }, [dateRange, customSince, customUntil, customCreatedSince, customCreatedUntil]);
 
   // Handle row click - navigate to report detail page
   const onRowClicked = (event: { data: Report | undefined }) => {
@@ -532,7 +519,6 @@ export default function ReportsPageClient() {
   }, []);
 
   // External filter: check if filter is present (AG Grid pattern)
-  // Note: typeFilter is handled server-side for better performance
   const isExternalFilterPresent = useCallback(() => {
     return statusFilters.length > 0 || tier3Only;
   }, [statusFilters, tier3Only]);
@@ -561,7 +547,7 @@ export default function ReportsPageClient() {
   }, [statusFilters, tier3Only]);
 
   // Check if any filters are active (for count text)
-  const hasActiveFilters = searchText.length > 0 || statusFilters.length > 0 || tier3Only || typeFilter !== 'all';
+  const hasActiveFilters = searchText.length > 0 || statusFilters.length > 0 || tier3Only;
 
   // Create theme with dark mode support and app branding
   const theme = useMemo(() => {
@@ -751,20 +737,8 @@ export default function ReportsPageClient() {
             Tier 3
           </button>
 
-          {/* Type filter */}
-          <div className="h-4 w-px bg-border mx-1" />
-          <NativeSelect
-            size="sm"
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as 'shortage' | 'discontinuation' | 'all')}
-          >
-            <NativeSelectOption value="all">{t('all')}</NativeSelectOption>
-            <NativeSelectOption value="shortage">{t('shortage')}</NativeSelectOption>
-            <NativeSelectOption value="discontinuation">{t('discontinuation')}</NativeSelectOption>
-          </NativeSelect>
-
           {/* Reset filters button (only when any filter is active) */}
-          {(searchText || statusFilters.length > 0 || tier3Only || typeFilter !== 'all') && (
+          {(searchText || statusFilters.length > 0 || tier3Only) && (
             <Button
               variant="ghost"
               size="xs"
@@ -772,7 +746,6 @@ export default function ReportsPageClient() {
                 setSearchText('');
                 setStatusFilters([]);
                 setTier3Only(false);
-                setTypeFilter('all');
               }}
             >
               <X size={12} />

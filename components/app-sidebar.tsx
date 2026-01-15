@@ -56,7 +56,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const locale = useLocale()
   const t = useTranslations("Navigation")
   const tCommon = useTranslations("Common")
-  const { setTheme, theme } = useTheme()
+  const { setTheme, theme, resolvedTheme } = useTheme()
   const [mounted, setMounted] = React.useState(false)
 
   // Avoid hydration mismatch by only rendering theme-dependent content after mount
@@ -65,7 +65,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }, [])
 
   const toggleTheme = () => {
-    setTheme(theme === "dark" ? "light" : "dark")
+    setTheme(resolvedTheme === "dark" ? "light" : "dark")
   }
 
   const toggleLanguage = () => {
@@ -173,7 +173,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  tooltip={mounted ? (theme === "dark" ? t("lightMode") : t("darkMode")) : t("toggleTheme")}
+                  tooltip={mounted ? (resolvedTheme === "dark" ? t("lightMode") : t("darkMode")) : t("toggleTheme")}
                   onClick={toggleTheme}
                   className="cursor-pointer"
                   aria-label={t("toggleTheme")}

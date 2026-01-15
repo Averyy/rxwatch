@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DrugSearch } from '@/components/drug-search';
+import { SyncStatus } from '@/components/sync-status';
 
 // Skeleton loading component for homepage
 function HomeSkeleton() {
@@ -133,31 +134,9 @@ function formatDate(dateStr: string | null, locale: string): string {
   return date.toLocaleDateString(locale === 'fr' ? 'fr-CA' : 'en-CA', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-// Format sync time
-function formatSyncTime(
-  dateStr: string | null,
-  tNav: (key: string, params?: Record<string, string | number>) => string
-): string {
-  if (!dateStr) return '';
-  const date = new Date(dateStr);
-  if (isNaN(date.getTime())) return '';
-
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-
-  if (diffMins < 1) return tNav('justNow');
-  if (diffMins < 60) return tNav('mAgo', { minutes: diffMins });
-  if (diffHours < 24) return tNav('hAgo', { hours: diffHours });
-  return tNav('yesterday');
-}
-
-
 export default function Home() {
   const locale = useLocale();
   const t = useTranslations('HomePage');
-  const tNav = useTranslations('Navigation');
   const tStatus = useTranslations('Status');
   const tSearch = useTranslations('Search');
 
@@ -196,7 +175,7 @@ export default function Home() {
     );
   }
 
-  const { reportsByStatus, resolvedLast30Days, recentTier3Shortages, recentDiscontinuations, lastSyncedAt } = stats;
+  const { reportsByStatus, resolvedLast30Days, recentTier3Shortages, recentDiscontinuations } = stats;
 
   return (
     <div className="space-y-8">
@@ -210,10 +189,7 @@ export default function Home() {
             {t('description')}
           </p>
           {/* Sync Status */}
-          <div className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
-            <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-            <span>{t('dataSynced', { time: formatSyncTime(lastSyncedAt, tNav) })}</span>
-          </div>
+          <SyncStatus variant="homepage" />
         </div>
 
         {/* Search Bar */}
@@ -428,7 +404,7 @@ export default function Home() {
                 {t('discontinuationsDescription')}
               </CardDescription>
             </div>
-            <Link href={`/${locale}/reports?type=discontinuation`}>
+            <Link href={`/${locale}/reports?status=discontinued,to_be_discontinued`}>
               <Button variant="ghost" size="sm" className="gap-1">
                 {t('viewAll')} <ArrowRight className="h-4 w-4" />
               </Button>

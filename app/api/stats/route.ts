@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db, drugs, reports } from '@/db';
+import { db, drugs, reports, syncMetadata } from '@/db';
 import { sql, eq, desc } from 'drizzle-orm';
 import { getFromCache, setInCache } from '@/lib/api-cache';
 
@@ -169,6 +169,7 @@ export async function GET() {
         .limit(10),
 
       // Recent discontinuation reports (for homepage)
+      // Order by discontinuation date (actual or anticipated), most recent first
       db.select({
         reportId: reports.reportId,
         din: reports.din,
@@ -183,15 +184,14 @@ export async function GET() {
         anticipatedDiscontinuationDate: reports.anticipatedDiscontinuationDate,
       })
         .from(reports)
-        .where(sql`${reports.type} = 'discontinuation'`)
-        .orderBy(desc(reports.apiUpdatedDate))
+        .where(sql`${reports.type} = 'discontinuation' AND ${reports.status} IN ('discontinued', 'to_be_discontinued')`)
+        .orderBy(sql`COALESCE(${reports.discontinuationDate}, ${reports.anticipatedDiscontinuationDate}) DESC NULLS LAST`)
         .limit(10),
 
-      // Last synced timestamp (for homepage header)
-      db.select({ updatedAt: reports.updatedAt })
-        .from(reports)
-        .orderBy(desc(reports.updatedAt))
-        .limit(1),
+      // Last synced timestamp (for homepage header) - use sync_metadata for accurate tracking
+      db.select({ lastSuccessAt: syncMetadata.lastSuccessAt })
+        .from(syncMetadata)
+        .where(eq(syncMetadata.id, 'dsc')),
 
       // === ACCOUNTABILITY METRICS (for stats page) ===
 
@@ -576,7 +576,7 @@ export async function GET() {
       resolvedLast30Days: resolvedLast30Days.count,
       recentTier3Shortages: recentShortages,
       recentDiscontinuations,
-      lastSyncedAt: lastSync?.updatedAt?.toISOString() || null,
+      lastSyncedAt: lastSync?.lastSuccessAt?.toISOString() || null,
 
       // === ACCOUNTABILITY METRICS (stats page) ===
       accountability: {

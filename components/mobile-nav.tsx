@@ -54,13 +54,13 @@ export function MobileNavProvider({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = React.useState(false)
   const [mounted, setMounted] = React.useState(false)
   const pathname = usePathname()
-  const { setTheme, theme } = useTheme()
+  const { setTheme, resolvedTheme } = useTheme()
 
   const openMobileNav = React.useCallback(() => setIsOpen(true), [])
   const closeMobileNav = React.useCallback(() => setIsOpen(false), [])
 
   const toggleTheme = () => {
-    setTheme(theme === "dark" ? "light" : "dark")
+    setTheme(resolvedTheme === "dark" ? "light" : "dark")
   }
 
   // Mount check for portal

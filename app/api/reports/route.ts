@@ -11,7 +11,6 @@ const CACHE_NAMESPACE = 'reports';
  *
  * Query params (all optional, combine as needed):
  * - active=true                    Only active reports (~1,900) - excludes resolved/reversed/avoided
- * - type=shortage                  Filter by type (shortage|discontinuation)
  * - status=active_confirmed        Filter by exact status (validated enum)
  * - company=PFIZER                 Filter by company (partial match, case-insensitive)
  * - din=02345678                   Filter by DIN (exact match)
@@ -23,7 +22,6 @@ const CACHE_NAMESPACE = 'reports';
  * - created_until=2024-12-31       Reports created until date (ISO format)
  * - limit=20                       Limit results (for homepage recent reports)
  */
-const VALID_TYPES = ['shortage', 'discontinuation'];
 const VALID_STATUSES = ['active_confirmed', 'anticipated_shortage', 'avoided_shortage', 'resolved', 'to_be_discontinued', 'discontinued', 'reversed'];
 
 export async function GET(request: Request) {
@@ -43,7 +41,6 @@ export async function GET(request: Request) {
     }
 
     const active = searchParams.get('active');
-    const type = searchParams.get('type');
     const status = searchParams.get('status');
     const company = searchParams.get('company');
     const din = searchParams.get('din');
@@ -68,16 +65,6 @@ export async function GET(request: Request) {
     // Active = not resolved, not reversed, not avoided
     if (active === 'true') {
       conditions.push(sql`${reports.status} NOT IN ('resolved', 'reversed', 'avoided_shortage')`);
-    }
-
-    if (type) {
-      if (!VALID_TYPES.includes(type)) {
-        return NextResponse.json(
-          { error: `Invalid type. Must be one of: ${VALID_TYPES.join(', ')}` },
-          { status: 400 }
-        );
-      }
-      conditions.push(sql`${reports.type} = ${type}`);
     }
 
     if (status) {
