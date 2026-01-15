@@ -96,7 +96,6 @@ export class DSCClient {
       throw new Error(`No account at index ${index}`);
     }
 
-    console.log(`  Logging in as ${account.email}...`);
 
     const response = await fetchWithTimeout(`${DSC_API_URL}/login`, {
       method: 'POST',
@@ -126,7 +125,6 @@ export class DSCClient {
     if (nextIndex === 0 && this.currentAccountIndex !== 0) {
       throw new Error('All accounts exhausted');
     }
-    console.log(`  Rotating to account ${nextIndex + 1}/${this.accounts.length}`);
     return this.login(nextIndex);
   }
 
@@ -153,7 +151,6 @@ export class DSCClient {
 
         // Retry with account rotation on auth/rate limit errors
         if (response.status === 401 || response.status === 403 || response.status === 429) {
-          console.log(`  Got ${response.status}, rotating account...`);
           await this.rotateAccount();
           response = await fetchWithTimeout(url.toString(), {
             headers: { 'auth-token': this.authToken! },
@@ -181,7 +178,6 @@ export class DSCClient {
           const baseDelay = Math.pow(2, attempt) * 1000;
           const jitter = Math.random() * 1000;
           const delay = baseDelay + jitter;
-          console.log(`  Retry ${attempt}/${MAX_RETRIES} for ${path} (${e.message}), waiting ${Math.round(delay)}ms...`);
           await new Promise(r => setTimeout(r, delay));
           continue;
         }

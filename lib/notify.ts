@@ -61,9 +61,8 @@ function rotateLogsIfNeeded(): void {
 
     // Rotate current file to .1
     fs.renameSync(ERROR_LOG_FILE, `${ERROR_LOG_FILE}.1`);
-    console.log(`Log rotated: ${ERROR_LOG_FILE}`);
-  } catch (error) {
-    console.error('Failed to rotate logs:', error);
+  } catch {
+    // Ignore rotation errors
   }
 }
 
@@ -125,11 +124,8 @@ async function sendWebhook(payload: NotificationPayload): Promise<boolean> {
       if (response.ok) {
         return true;
       }
-
-      // Log webhook failure but don't throw
-      console.error(`Webhook notification failed (attempt ${attempt}/3): HTTP ${response.status}`);
-    } catch (error) {
-      console.error(`Webhook notification error (attempt ${attempt}/3):`, error);
+    } catch {
+      // Ignore webhook errors, will retry
     }
 
     if (attempt < 3) {
@@ -174,23 +170,15 @@ export async function notify(
 
   // Send webhook for errors
   if (status === 'error') {
-    const webhookSent = await sendWebhook(payload);
-    if (!webhookSent && NOTIFY_WEBHOOK_URL) {
-      console.error(`WARNING: Failed to send webhook notification for ${script} error`);
-    }
+    await sendWebhook(payload);
   }
 }
 
 /**
  * Notify about successful completion with stats
  */
-export async function notifySuccess(script: string, stats: Record<string, number | string>): Promise<void> {
-  const statsStr = Object.entries(stats)
-    .map(([k, v]) => `${k}: ${v}`)
-    .join(', ');
-
-  // Log success to console only (not to file to avoid log bloat)
-  console.log(`[${new Date().toISOString()}] ${script} SUCCESS: ${statsStr}`);
+export async function notifySuccess(_script: string, _stats: Record<string, number | string>): Promise<void> {
+  // Success is tracked in sync metadata, no logging needed
 }
 
 /**

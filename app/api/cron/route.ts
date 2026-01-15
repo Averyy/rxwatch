@@ -70,7 +70,6 @@ export async function POST(request: Request) {
   }
 
   // Trigger the job
-  console.log(`[api/cron] Manual trigger for ${job} job`);
   const result = await triggerSync(job);
 
   return NextResponse.json({

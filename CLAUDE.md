@@ -1,11 +1,9 @@
 # RxWatch.ca - Drug Shortage Intelligence Tool
 
-Canadian drug shortage lookup + notification tool. Combines Drug Shortages Canada API + Health Canada Drug Product Database for shortage status, alternatives, and push notifications (iOS).
-
-## What's Not Built Yet
-(Nothing pending for MVP)
+Canadian drug shortage lookup tool. Combines Drug Shortages Canada API + Health Canada Drug Product Database for shortage status, alternatives, and analytics.
 
 ## Database Stats
+
 | Data | Count |
 |------|-------|
 | Drugs (DPD) | 57,512 |
@@ -29,10 +27,11 @@ Canadian drug shortage lookup + notification tool. Combines Drug Shortages Canad
 │                      VPS (Single Server)                │
 │  ┌─────────────┐    ┌─────────────┐    ┌────────────┐  │
 │  │   Caddy     │───▶│  Next.js    │───▶│ PostgreSQL │  │
-│  │   :80/:443  │    │   :5000     │    │   :5433    │  │
+│  │   :80/:443  │    │   :5000     │    │   :5432    │  │
 │  └─────────────┘    └─────────────┘    └────────────┘  │
-│                                                         │
-│  Cron: scripts/sync-dsc.ts (15 min), sync-dpd.ts (daily)│
+│                            │                            │
+│                     Built-in Cron                       │
+│              (DSC: 15 min, DPD: daily 4am)              │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -92,6 +91,7 @@ See `db/schema.ts` for full schema. Key points:
 /api/reports/[id]          # Report details
 /api/stats                 # Aggregate stats
 /api/health                # Health check
+/api/cron                  # Manual cron trigger (requires CRON_SECRET)
 ```
 
 **GET /api/drugs params:** `hasReports`, `status`, `company`, `atc`, `ingredient`, `marketed`
@@ -104,6 +104,8 @@ See `db/schema.ts` for full schema. Key points:
 
 ## Data Sync
 
+Sync runs automatically via Next.js instrumentation (`instrumentation.ts` → `lib/cron.ts`). No external crontab needed.
+
 | Source | Script | Frequency | Notes |
 |--------|--------|-----------|-------|
 | DSC | `sync-dsc.ts` | Every 15 min | Active reports, gap detection |
@@ -111,10 +113,9 @@ See `db/schema.ts` for full schema. Key points:
 
 **Initial Setup (one-time):**
 ```bash
-yarn fetch-history         # Fetch DSC reports → history/ folder
-yarn backfill              # Import history → database
+yarn backfill              # Import history/ → database (fast, files included)
 yarn sync-dpd:backfill     # Full DPD catalog (~1-2 hours)
-yarn db:dump               # Save SQL dump
+yarn db:dump               # Save SQL dump for backup
 ```
 
 **DPD sync modes:**
@@ -133,6 +134,7 @@ DSC_API_URL=https://www.drugshortagescanada.ca/api/v1
 DSC_ACCOUNTS='[{"email":"...","password":"..."}]'  # Multiple for failover
 DPD_API_URL=https://health-products.canada.ca/api/drug
 NEXT_PUBLIC_APP_URL=https://rxwatch.ca
+CRON_SECRET=<random-string>  # For manual cron trigger
 ```
 
 ---
@@ -153,53 +155,37 @@ yarn db:studio             # Drizzle Studio
 yarn dev                   # Dev server (port 5000)
 yarn build                 # Production build
 yarn type-check            # TypeScript check
+yarn lint                  # ESLint
 
 # Data Sync
-yarn fetch-history         # DSC reports → history/
 yarn backfill              # history/ → database
-yarn sync-dsc              # DSC sync (production cron)
-yarn sync-dpd              # DPD sync (daily cron)
+yarn sync-dsc              # DSC sync (runs automatically in prod)
+yarn sync-dpd              # DPD sync (runs automatically in prod)
 yarn sync-dpd:backfill     # Full DPD import
 ```
 
 ---
 
-## Database Workflow
-
-**Restore from dump (most common):**
-```bash
-yarn db:start && yarn db:push
-yarn db:restore db/dumps/rxwatch-YYYYMMDD.sql
-```
-
-**Fresh backfill (rare):**
-```bash
-yarn db:reset && yarn db:push
-yarn backfill && yarn sync-dpd:backfill
-yarn db:dump  # Save it!
-```
-
-Dumps are gitignored. DSC API is slow - don't rebuild from scratch unnecessarily.
-
----
-
 ## Local Development Setup
 
-1. `docker-compose up -d` - Start PostgreSQL
+1. `docker compose up -d` - Start PostgreSQL
 2. Copy `.env.example` → `.env.local`
 3. `yarn db:push` - Create schema
-4. `yarn db:restore <dump>` or `yarn backfill` - Load data
-5. `yarn dev` - Start dev server
+4. `yarn backfill` - Load shortage history (from included files)
+5. `yarn sync-dpd:backfill` - Fetch drug catalog (takes ~1-2 hours)
+6. `yarn dev` - Start dev server
+
+**Faster alternative:** If you have a database dump, use `yarn db:restore <dump>` instead of steps 4-5.
 
 ---
 
 ## Key Decisions
 
-- EN/FR only for MVP
+- EN/FR bilingual support
 - Therapeutic alternatives limited to same ATC-4 level
-- Notifications only via iOS app (free APNS)
-- No web accounts in v1
+- No user accounts in v1
 - All data from official APIs only - no scraping
+- Built-in cron (no external scheduler needed)
 
 ## Legal Disclaimers (Required)
 

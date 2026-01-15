@@ -2,18 +2,19 @@
 
 **Canadian Drug Shortage Intelligence**
 
-Check Canadian drug shortages and discontinuations by name or DIN. View reports and find medication alternatives.
+Track Canadian drug shortages and discontinuations in real-time. Search 57,000+ drugs, view shortage history, and find therapeutic alternatives using official Health Canada data.
 
 ## Why This Exists
 
-This is a free, open-source project to make Canadian drug shortage data more accessible. The official [Drug Shortages Canada](https://www.drugshortagescanada.ca/) website is frequently slow, occasionally goes down, and can be difficult to navigate. RxWatch provides a faster, more reliable interface to the same official data with better search, filtering, and alternative medication suggestions.
+The official [Drug Shortages Canada](https://www.drugshortagescanada.ca/) website is frequently slow, occasionally goes down, and can be difficult to navigate. RxWatch provides a faster, more reliable interface to the same official data with better search, filtering, and alternative medication suggestions.
 
 ## Features
 
-- **Drug Search** - Search 57,000+ drugs by name or DIN with fuzzy matching
-- **Shortage Reports** - Browse 27,000+ shortage and discontinuation reports
-- **Alternatives** - Find same-ingredient generics or same-class therapeutics
-- **Analytics** - Track trends, late reporters, root causes
+- **Drug Search** - Search 57,000+ drugs by name or DIN with fuzzy matching (handles typos)
+- **Shortage Reports** - Browse 27,000+ shortage and discontinuation reports with filtering
+- **Alternatives** - Find same-ingredient generics or same-class therapeutic alternatives
+- **Analytics** - Track trends, late reporters, and root causes
+- **Bilingual** - Full English and French support
 - **Real-time Sync** - Data updated every 15 minutes from official sources
 
 ## Data Sources
@@ -30,6 +31,7 @@ This is a free, open-source project to make Canadian drug shortage data more acc
 - **AG Grid** - Data tables
 - **Recharts** - Charts
 - **PostgreSQL** + Drizzle ORM
+- **next-intl** - Internationalization (EN/FR)
 
 ## Quick Start
 
@@ -42,56 +44,45 @@ yarn install
 # 2. Start PostgreSQL
 docker compose up -d
 
-# 3. Copy environment file
+# 3. Configure environment
 cp .env.example .env.local
 # Edit .env.local with your DSC credentials (free account at drugshortagescanada.ca)
 
-# 4. Set up database
+# 4. Set up database and load data
 yarn db:push
-yarn db:restore db/dumps/rxwatch-latest.sql  # If you have a dump
-# OR run full backfill (slow - DSC API is rate-limited):
-# yarn backfill && yarn sync-dpd:backfill
+yarn backfill              # Import historical reports from history/ folder
+yarn sync-dpd:backfill     # Fetch full drug catalog (~1-2 hours)
 
 # 5. Run dev server
 yarn dev
 ```
 
+The `history/` folder contains pre-fetched shortage reports, so `yarn backfill` is fast. The DPD sync takes longer as it fetches from Health Canada's API.
+
 See [CLAUDE.md](CLAUDE.md) for detailed technical documentation.
 
-## Production Deployment (VPS)
+## Production Deployment
 
-Deploys automatically via GitHub Actions on push to `main`.
+Deploys automatically via GitHub Actions on push to `main`. The app includes built-in cron jobs for data sync - no external crontab needed.
 
-**One-time VPS setup:**
-```bash
-# Clone repo
-git clone https://github.com/Averyy/rxwatch.git
-cd rxwatch
-
-# Configure environment
-cp .env.example .env.local
-# Edit .env.local with production credentials
-
-# Set up cron jobs
-crontab -e
-# Add:
-# 0,15,30,45 * * * * cd /root/rxwatch && yarn sync-dsc >> /var/log/rxwatch-dsc.log 2>&1
-# 0 4 * * * cd /root/rxwatch && yarn sync-dpd >> /var/log/rxwatch-dpd.log 2>&1
+**Architecture:**
 ```
-
-Add to your Caddy config:
+Caddy (:80/:443) → Next.js (:5000) → PostgreSQL (:5432)
+                        ↓
+              Built-in cron (DSC: 15min, DPD: daily)
 ```
-rxwatch.ca {
-    reverse_proxy localhost:5000
-}
-```
-
-Then push to `main` - GitHub Actions handles the rest (including first-run database seeding from cached data).
 
 **GitHub Secrets required:**
 - `VPS_HOST` - Server IP/hostname
 - `VPS_USERNAME` - SSH user
 - `VPS_SSH_KEY` - Private SSH key
+
+**Caddy config:**
+```
+rxwatch.ca {
+    reverse_proxy localhost:5000
+}
+```
 
 ## Disclaimer
 

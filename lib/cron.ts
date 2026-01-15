@@ -56,8 +56,8 @@ async function updateSyncMetadata(jobId: 'dsc' | 'dpd', success: boolean, error?
             : sql`${syncMetadata.consecutiveFailures} + 1`,
         },
       });
-  } catch (err) {
-    console.error(`[cron] Failed to update sync metadata for ${jobId}:`, err);
+  } catch {
+    // Ignore metadata update errors
   }
 }
 
@@ -72,14 +72,11 @@ async function runSyncScript(
 
   // Prevent concurrent runs of same job
   if (runningJobs.has(scriptName)) {
-    console.log(`[cron] ${scriptName} already running, skipping`);
     return { success: false, output: 'Job already running' };
   }
 
   runningJobs.add(scriptName);
   const startTime = Date.now();
-  const retryLabel = isRetry ? ' (retry)' : '';
-  console.log(`[cron] Starting ${scriptName}${retryLabel} at ${new Date().toISOString()}`);
 
   return new Promise((resolve) => {
     const output: string[] = [];
@@ -98,10 +95,6 @@ async function runSyncScript(
       if (output.length < MAX_OUTPUT_LINES) {
         output.push(line);
       }
-      // Log important lines
-      if (line.includes('===') || line.includes('Error') || line.includes('Complete')) {
-        console.log(`[${scriptName}] ${line.trim()}`);
-      }
     });
 
     child.stderr?.on('data', (data) => {
@@ -109,7 +102,6 @@ async function runSyncScript(
       if (output.length < MAX_OUTPUT_LINES) {
         output.push(`[stderr] ${line}`);
       }
-      console.error(`[${scriptName}] ${line.trim()}`);
     });
 
     child.on('close', async (code) => {
@@ -118,19 +110,16 @@ async function runSyncScript(
       const outputStr = output.join('');
 
       if (code === 0) {
-        console.log(`[cron] ${scriptName} completed successfully in ${duration}s`);
         await updateSyncMetadata(jobId, true);
         resolve({ success: true, output: outputStr });
       } else {
         const errorMsg = `Exit code ${code} after ${duration}s`;
-        console.error(`[cron] ${scriptName} failed: ${errorMsg}`);
         await updateSyncMetadata(jobId, false, errorMsg);
 
         // Retry once after delay if this wasn't already a retry
         if (!isRetry) {
-          console.log(`[cron] Will retry ${scriptName} in 5 minutes...`);
           setTimeout(() => {
-            runSyncScript(scriptName, true).catch(console.error);
+            runSyncScript(scriptName, true).catch(() => {});
           }, RETRY_DELAY_MS);
         }
 
@@ -141,14 +130,12 @@ async function runSyncScript(
     child.on('error', async (err) => {
       runningJobs.delete(scriptName);
       const errorMsg = `Spawn error: ${err.message}`;
-      console.error(`[cron] ${scriptName} ${errorMsg}`);
       await updateSyncMetadata(jobId, false, errorMsg);
 
       // Retry once after delay if this wasn't already a retry
       if (!isRetry) {
-        console.log(`[cron] Will retry ${scriptName} in 5 minutes...`);
         setTimeout(() => {
-          runSyncScript(scriptName, true).catch(console.error);
+          runSyncScript(scriptName, true).catch(() => {});
         }, RETRY_DELAY_MS);
       }
 
@@ -187,30 +174,23 @@ let initialized = false;
 export function initCron() {
   // Prevent double initialization
   if (initialized) {
-    console.log('[cron] Already initialized, skipping');
     return;
   }
 
   // Only run in production
   if (process.env.NODE_ENV !== 'production') {
-    console.log('[cron] Skipping cron init in development');
     return;
   }
 
-  console.log('[cron] Initializing background jobs...');
-  console.log(`[cron] DSC sync schedule: ${SCHEDULES.dsc}`);
-  console.log(`[cron] DPD sync schedule: ${SCHEDULES.dpd}`);
-
   // Schedule DSC sync (every 15 min)
   cron.schedule(SCHEDULES.dsc, () => {
-    runSyncScript('sync-dsc').catch(console.error);
+    runSyncScript('sync-dsc').catch(() => {});
   });
 
   // Schedule DPD sync (daily at 4am)
   cron.schedule(SCHEDULES.dpd, () => {
-    runSyncScript('sync-dpd').catch(console.error);
+    runSyncScript('sync-dpd').catch(() => {});
   });
 
   initialized = true;
-  console.log('[cron] Background jobs initialized');
 }
