@@ -10,6 +10,6 @@ export default function robots(): MetadataRoute.Robots {
         allow: '/',
       },
     ],
-    sitemap: `${baseUrl}/api/sitemap-index`,
+    sitemap: `${baseUrl}/sitemap.xml`,
   }
 }
