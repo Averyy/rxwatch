@@ -28,7 +28,11 @@
     "justNow": "À l'instant",
     "mAgo": "Il y a {minutes} min",
     "hAgo": "Il y a {hours} h",
-    "yesterday": "Hier"
+    "yesterday": "Hier",
+    "dAgo": "Il y a {days} j",
+    "syncStatus": "État de synchronisation",
+    "syncStale": "(obsolète)",
+    "syncStaleWarning": "Les données peuvent être obsolètes"
   },
   "HomePage": {
     "title": "Renseignements sur les pénuries de médicaments au Canada",

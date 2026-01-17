@@ -34,26 +34,30 @@ export function SyncStatus({ variant = "header" }: SyncStatusProps) {
     const date = new Date(dateStr);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
+
+    // Handle future dates (clock skew)
+    if (diffMs < 0) return t('justNow');
+
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
 
-    // Check if same day
-    const isToday = date.toDateString() === now.toDateString();
+    // Less than 1 minute
+    if (diffMins < 1) return t('justNow');
 
-    if (isToday) {
-      if (diffMins < 1) return t('justNow');
-      if (diffMins < 60) return t('mAgo', { minutes: diffMins });
-      return t('hAgo', { hours: diffHours });
-    }
+    // Less than 1 hour - show minutes
+    if (diffMins < 60) return t('mAgo', { minutes: diffMins });
 
-    // Check if yesterday
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    if (date.toDateString() === yesterday.toDateString()) {
-      return t('yesterday');
-    }
+    // Less than 24 hours - show hours
+    if (diffHours < 24) return t('hAgo', { hours: diffHours });
 
-    // Otherwise show the date
+    // 24-48 hours - show "yesterday"
+    if (diffHours < 48) return t('yesterday');
+
+    // 2-7 days - show days
+    if (diffDays < 7) return t('dAgo', { days: diffDays });
+
+    // 7+ days - show actual date
     return date.toLocaleDateString(locale === 'fr' ? 'fr-CA' : 'en-US', { month: 'short', day: 'numeric' });
   }, [t, locale]);
 
@@ -89,19 +93,34 @@ export function SyncStatus({ variant = "header" }: SyncStatusProps) {
   }, [syncData, formatSyncTime]);
 
   const isStale = syncData?.dsc?.status === 'stale';
+  const isLoading = !syncData;
   const label = syncText ? t('synced', { time: syncText }) : t('checking');
 
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className={`flex items-center gap-1.5 text-muted-foreground cursor-help ${
-            variant === "homepage" ? "justify-center text-sm" : "ml-auto text-xs"
-          }`}>
-            <div className={`h-1.5 w-1.5 rounded-full ${
-              isStale ? 'bg-yellow-500' : 'bg-primary animate-pulse'
-            }`} />
+          <div
+            className={`flex items-center gap-1.5 text-muted-foreground cursor-help ${
+              variant === "homepage" ? "justify-center text-sm" : "ml-auto text-xs"
+            }`}
+            role="status"
+            aria-live="polite"
+            aria-label={`${t('syncStatus')}: ${label}${isStale ? `. ${t('syncStaleWarning')}` : ''}`}
+          >
+            <div
+              className={`h-1.5 w-1.5 rounded-full ${
+                isLoading ? 'bg-muted-foreground animate-pulse' :
+                isStale ? 'bg-yellow-500' : 'bg-primary animate-pulse'
+              }`}
+              aria-hidden="true"
+            />
             <span>{label}</span>
+            {isStale && (
+              <span className="text-yellow-600 dark:text-yellow-400" aria-hidden="true">
+                {t('syncStale')}
+              </span>
+            )}
           </div>
         </TooltipTrigger>
         <TooltipContent side="bottom" align={variant === "homepage" ? "center" : "end"} className="text-xs">
