@@ -74,7 +74,7 @@ export default async function TermsPage({ params }: Props) {
           <p className="text-muted-foreground">
             {t('accuracyDesc2')}{' '}
             <a
-              href="https://www.drugshortagescanada.ca"
+              href="https://www.healthproductshortages.ca"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary hover:underline"

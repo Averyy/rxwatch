@@ -191,7 +191,7 @@ export function MobileNavProvider({ children }: { children: React.ReactNode }) {
                         <p className="text-muted-foreground mt-1">
                           Always consult your pharmacist or doctor.{" "}
                           <a
-                            href="https://www.drugshortagescanada.ca"
+                            href="https://www.healthproductshortages.ca"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="underline hover:text-primary"

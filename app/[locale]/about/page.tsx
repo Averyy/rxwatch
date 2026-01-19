@@ -120,7 +120,7 @@ export default async function AboutPage({ params }: Props) {
             <div className="flex items-center gap-2">
               <h3 className="font-semibold">{t('dscTitle')}</h3>
               <a
-                href="https://www.drugshortagescanada.ca"
+                href="https://www.healthproductshortages.ca"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-muted-foreground hover:text-primary"
@@ -320,7 +320,7 @@ export default async function AboutPage({ params }: Props) {
         <p className="text-sm text-muted-foreground text-center">
           {t('finalDisclaimer2')}{' '}
           <a
-            href="https://www.drugshortagescanada.ca"
+            href="https://www.healthproductshortages.ca"
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline"

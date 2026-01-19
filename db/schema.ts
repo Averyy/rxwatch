@@ -28,8 +28,8 @@ export const reportTypeEnum = pgEnum('report_type', [
 /**
  * Report Status - Values from Drug Shortages Canada
  * Sources:
- * - API filter_status: https://www.drugshortagescanada.ca/blog/52
- * - Summary page: https://www.drugshortagescanada.ca/summary-report
+ * - API filter_status: https://www.healthproductshortages.ca/blog/52
+ * - Summary page: https://www.healthproductshortages.ca/summary-report
  *
  * Shortage statuses:
  * - active_confirmed = "Actual shortage" (currently in shortage)

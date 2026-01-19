@@ -1,7 +1,7 @@
 import { config } from 'dotenv';
 config({ path: '.env.local' });
 
-const DSC_API_URL = 'https://www.drugshortagescanada.ca/api/v1';
+const DSC_API_URL = 'https://www.healthproductshortages.ca/api/v1';
 
 async function test() {
   const accounts = JSON.parse(process.env.DSC_ACCOUNTS || '[]');

@@ -197,7 +197,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <p className="text-muted-foreground mt-1">
                 {tCommon("consultProfessional")}{" "}
                 <a
-                  href="https://www.drugshortagescanada.ca"
+                  href="https://www.healthproductshortages.ca"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline hover:text-primary"

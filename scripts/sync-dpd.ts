@@ -98,11 +98,24 @@ async function fetchWithTimeout(url: string, timeoutMs: number = API_TIMEOUT_MS)
   }
 }
 
-async function fetchJSON<T>(url: string, retries = 3): Promise<T> {
+const MAX_RETRIES = 5;
+
+function isRetryableStatus(status: number): boolean {
+  return status >= 500 || status === 429;
+}
+
+async function fetchJSON<T>(url: string, retries = MAX_RETRIES): Promise<T> {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const response = await fetchWithTimeout(url);
       if (!response.ok) {
+        // Retry on 5xx and 429 errors
+        if (isRetryableStatus(response.status) && attempt < retries) {
+          const delay = Math.min(Math.pow(2, attempt) * 1000, 30000) + Math.random() * 1000;
+          console.warn(`  Retry ${attempt}/${retries} for ${url}: HTTP ${response.status}`);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
         throw new Error(`HTTP ${response.status}`);
       }
       // Handle JSON parse errors separately
@@ -114,10 +127,8 @@ async function fetchJSON<T>(url: string, retries = 3): Promise<T> {
       }
     } catch (e: any) {
       if (attempt < retries) {
-        // Exponential backoff with jitter: 2^attempt * 1000ms + random 0-1000ms
-        const baseDelay = Math.pow(2, attempt) * 1000;
-        const jitter = Math.random() * 1000;
-        const delay = baseDelay + jitter;
+        // Exponential backoff with jitter, capped at 30s
+        const delay = Math.min(Math.pow(2, attempt) * 1000, 30000) + Math.random() * 1000;
         console.warn(`  Retry ${attempt}/${retries} for ${url}: ${e.message}`);
         await new Promise(r => setTimeout(r, delay));
         continue;
@@ -519,8 +530,8 @@ async function runIncremental(db: ReturnType<typeof drizzle>, force: boolean) {
   let currentContentLength = 0;
   console.log('Checking Content-Length via HEAD request...');
 
-  // Retry HEAD request up to 3 times
-  for (let headAttempt = 1; headAttempt <= 3; headAttempt++) {
+  // Retry HEAD request with exponential backoff
+  for (let headAttempt = 1; headAttempt <= MAX_RETRIES; headAttempt++) {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout for HEAD
@@ -530,15 +541,24 @@ async function runIncremental(db: ReturnType<typeof drizzle>, force: boolean) {
         signal: controller.signal,
       });
       clearTimeout(timeout);
+
+      if (!headResponse.ok && isRetryableStatus(headResponse.status) && headAttempt < MAX_RETRIES) {
+        const delay = Math.min(Math.pow(2, headAttempt) * 1000, 30000) + Math.random() * 1000;
+        console.log(`  HEAD request failed (${headResponse.status}), retrying in ${Math.round(delay/1000)}s...`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+
       currentContentLength = parseInt(headResponse.headers.get('content-length') || '0', 10);
       console.log(`  Current Content-Length: ${currentContentLength.toLocaleString()} bytes`);
       break;
     } catch (e) {
-      if (headAttempt < 3) {
-        console.log(`  HEAD request failed (attempt ${headAttempt}/3), retrying...`);
-        await new Promise(r => setTimeout(r, 2000));
+      if (headAttempt < MAX_RETRIES) {
+        const delay = Math.min(Math.pow(2, headAttempt) * 1000, 30000) + Math.random() * 1000;
+        console.log(`  HEAD request failed (attempt ${headAttempt}/${MAX_RETRIES}), retrying in ${Math.round(delay/1000)}s...`);
+        await new Promise(r => setTimeout(r, delay));
       } else {
-        console.log('  HEAD request failed after 3 attempts, will proceed with full sync');
+        console.log(`  HEAD request failed after ${MAX_RETRIES} attempts, will proceed with full sync`);
       }
     }
   }
@@ -572,20 +592,9 @@ async function runIncremental(db: ReturnType<typeof drizzle>, force: boolean) {
     }
   }
 
-  // Fetch all drugs from API
+  // Fetch all drugs from API (with retry logic)
   console.log('\nFetching drug list from API (~14MB)...');
-  const response = await fetchWithTimeout(DRUG_LIST_URL);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch drug list: HTTP ${response.status}`);
-  }
-  // Handle JSON parse errors
-  const responseText = await response.text();
-  let apiDrugs: APIDrug[];
-  try {
-    apiDrugs = JSON.parse(responseText) as APIDrug[];
-  } catch (parseError) {
-    throw new Error(`Failed to parse drug list JSON: ${(parseError as Error).message}`);
-  }
+  const apiDrugs = await fetchJSON<APIDrug[]>(DRUG_LIST_URL);
   console.log(`Fetched ${apiDrugs.length} drugs\n`);
 
   // Get all existing drugs from DB

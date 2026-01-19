@@ -6,11 +6,39 @@
  * - Account rotation on rate limit (429) or auth failure (401/403)
  * - Typed responses
  *
- * API Docs: https://www.drugshortagescanada.ca/blog/52
+ * API Docs: https://www.healthproductshortages.ca/blog/52
  */
 
-const DSC_API_URL = process.env.DSC_API_URL || 'https://www.drugshortagescanada.ca/api/v1';
+const DSC_API_URL = process.env.DSC_API_URL || 'https://www.healthproductshortages.ca/api/v1';
 const TIMEOUT_MS = 60000; // 60 second timeout
+const MAX_RETRIES = 5;
+const BASE_DELAY_MS = 1000;
+
+/**
+ * Sleep with exponential backoff + jitter
+ */
+async function backoff(attempt: number): Promise<void> {
+  const delay = Math.min(BASE_DELAY_MS * Math.pow(2, attempt), 30000) + Math.random() * 1000;
+  await new Promise(r => setTimeout(r, delay));
+}
+
+/**
+ * Check if error is retryable (network issues, 5xx, rate limits)
+ */
+function isRetryableError(error: unknown, response?: Response): boolean {
+  if (response) {
+    return response.status >= 500 || response.status === 429;
+  }
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    return error.name === 'AbortError' ||
+           msg.includes('fetch') ||
+           msg.includes('network') ||
+           msg.includes('eai_again') ||
+           msg.includes('econnreset');
+  }
+  return false;
+}
 
 export interface DSCAccount {
   email: string;
@@ -86,35 +114,78 @@ export class DSCClient {
   }
 
   /**
-   * Login and get auth token
+   * Try to login with a single account (with retries for transient errors)
+   */
+  private async tryLoginAccount(accountIndex: number): Promise<string | null> {
+    const account = this.accounts[accountIndex];
+    if (!account) return null;
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const response = await fetchWithTimeout(`${DSC_API_URL}/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ email: account.email, password: account.password }),
+        });
+
+        if (!response.ok) {
+          if (isRetryableError(null, response) && attempt < MAX_RETRIES - 1) {
+            console.warn(`  Login attempt ${attempt + 1}/${MAX_RETRIES} for ${account.email} failed (${response.status}), retrying...`);
+            await backoff(attempt);
+            continue;
+          }
+          // Non-retryable error or exhausted retries - try next account
+          console.warn(`  Login failed for ${account.email}: ${response.status}`);
+          return null;
+        }
+
+        const authToken = response.headers.get('auth-token');
+        if (!authToken) {
+          console.warn(`  No auth-token received for ${account.email}`);
+          return null;
+        }
+
+        return authToken;
+      } catch (e) {
+        const error = e instanceof Error ? e : new Error(String(e));
+
+        if (isRetryableError(e) && attempt < MAX_RETRIES - 1) {
+          console.warn(`  Login attempt ${attempt + 1}/${MAX_RETRIES} for ${account.email} failed (${error.message}), retrying...`);
+          await backoff(attempt);
+          continue;
+        }
+        // Exhausted retries - try next account
+        console.warn(`  Login failed for ${account.email}: ${error.message}`);
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Login and get auth token - tries all accounts with retries
    */
   async login(accountIndex?: number): Promise<string> {
-    const index = accountIndex ?? this.currentAccountIndex;
-    const account = this.accounts[index];
+    const startIndex = accountIndex ?? this.currentAccountIndex;
+    const accountCount = this.accounts.length;
 
-    if (!account) {
-      throw new Error(`No account at index ${index}`);
+    // Try each account starting from the specified/current index
+    for (let i = 0; i < accountCount; i++) {
+      const index = (startIndex + i) % accountCount;
+      const account = this.accounts[index];
+
+      console.log(`  Trying account ${index + 1}/${accountCount}: ${account.email}`);
+
+      const authToken = await this.tryLoginAccount(index);
+      if (authToken) {
+        this.authToken = authToken;
+        this.currentAccountIndex = index;
+        return authToken;
+      }
     }
 
-
-    const response = await fetchWithTimeout(`${DSC_API_URL}/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ email: account.email, password: account.password }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Login failed for ${account.email}: ${response.status}`);
-    }
-
-    const authToken = response.headers.get('auth-token');
-    if (!authToken) {
-      throw new Error(`No auth-token received for ${account.email}`);
-    }
-
-    this.authToken = authToken;
-    this.currentAccountIndex = index;
-    return authToken;
+    throw new Error(`All ${accountCount} DSC accounts failed to authenticate`);
   }
 
   /**
@@ -129,7 +200,7 @@ export class DSCClient {
   }
 
   /**
-   * Make authenticated GET request with auto-retry on auth failure and timeouts
+   * Make authenticated GET request with auto-retry on errors
    */
   private async apiGet<T>(path: string, params: Record<string, string> = {}): Promise<T> {
     if (!this.authToken) {
@@ -139,22 +210,26 @@ export class DSCClient {
     const url = new URL(`${DSC_API_URL}/${path}`);
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
 
-    // Retry with exponential backoff on timeout/network errors
-    const MAX_RETRIES = 3;
     let lastError: Error | null = null;
 
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
-        let response = await fetchWithTimeout(url.toString(), {
+        const response = await fetchWithTimeout(url.toString(), {
           headers: { 'auth-token': this.authToken! },
         });
 
-        // Retry with account rotation on auth/rate limit errors
+        // Rotate account on auth/rate limit errors
         if (response.status === 401 || response.status === 403 || response.status === 429) {
           await this.rotateAccount();
-          response = await fetchWithTimeout(url.toString(), {
-            headers: { 'auth-token': this.authToken! },
-          });
+          // Retry immediately with new token
+          continue;
+        }
+
+        // Retry with backoff on 5xx errors
+        if (isRetryableError(null, response) && attempt < MAX_RETRIES - 1) {
+          console.warn(`  API request ${path} failed (${response.status}), retrying...`);
+          await backoff(attempt);
+          continue;
         }
 
         if (!response.ok) {
@@ -168,20 +243,15 @@ export class DSCClient {
         } catch (parseError) {
           throw new Error(`JSON parse error for ${path}: ${(parseError as Error).message}`);
         }
-      } catch (e: any) {
-        lastError = e;
-        const isTimeout = e.name === 'AbortError' || e.message?.includes('abort');
-        const isNetworkError = e.message?.includes('fetch') || e.message?.includes('network');
+      } catch (e) {
+        lastError = e instanceof Error ? e : new Error(String(e));
 
-        if ((isTimeout || isNetworkError) && attempt < MAX_RETRIES) {
-          // Exponential backoff with jitter
-          const baseDelay = Math.pow(2, attempt) * 1000;
-          const jitter = Math.random() * 1000;
-          const delay = baseDelay + jitter;
-          await new Promise(r => setTimeout(r, delay));
+        if (isRetryableError(e) && attempt < MAX_RETRIES - 1) {
+          console.warn(`  API request ${path} failed (${lastError.message}), retrying...`);
+          await backoff(attempt);
           continue;
         }
-        throw e;
+        throw lastError;
       }
     }
 

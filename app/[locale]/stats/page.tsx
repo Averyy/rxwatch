@@ -905,7 +905,7 @@ export default function StatsPage() {
       <div className="text-center text-sm text-muted-foreground pb-4 space-y-1">
         <p>
           {t('dataFrom')}{' '}
-          <a href="https://www.drugshortagescanada.ca" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">Drug Shortages Canada</a>
+          <a href="https://www.healthproductshortages.ca" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">Drug Shortages Canada</a>
           {' '}{t('and')}{' '}
           <a href="https://www.canada.ca/en/health-canada.html" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">Health Canada</a>
           . {t('updatedEvery15')}

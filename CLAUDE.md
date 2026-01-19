@@ -1,6 +1,6 @@
 # RxWatch.ca - Drug Shortage Intelligence Tool
 
-Canadian drug shortage lookup tool. Combines Drug Shortages Canada API + Health Canada Drug Product Database for shortage status, alternatives, and analytics.
+Canadian drug shortage lookup tool. Combines Health Product Shortages Canada API + Health Canada Drug Product Database for shortage status, alternatives, and analytics.
 
 ## Database Stats
 
@@ -41,11 +41,11 @@ Canadian drug shortage lookup tool. Combines Drug Shortages Canada API + Health 
 
 ## Data Sources
 
-### Drug Shortages Canada API
-- URL: `https://www.drugshortagescanada.ca/api/v1`
+### Health Product Shortages Canada API (DSC)
+- URL: `https://www.healthproductshortages.ca/api/v1`
 - Auth: Free account required, rate limit 1000/hr
 - **Response time: SLOW (30s+ timeout)**
-- Docs: https://www.drugshortagescanada.ca/blog/52
+- Docs: https://www.healthproductshortages.ca/blog/52
 
 **Endpoints:** `POST /login`, `GET /search`, `GET /shortages/{id}`, `GET /discontinuances/{id}`
 
@@ -130,7 +130,7 @@ yarn db:dump               # Save SQL dump for backup
 
 ```bash
 DATABASE_URL=postgresql://rxwatch:password@localhost:5433/rxwatch
-DSC_API_URL=https://www.drugshortagescanada.ca/api/v1
+DSC_API_URL=https://www.healthproductshortages.ca/api/v1
 DSC_ACCOUNTS='[{"email":"...","password":"..."}]'  # Multiple for failover
 DPD_API_URL=https://health-products.canada.ca/api/drug
 NEXT_PUBLIC_APP_URL=https://rxwatch.ca

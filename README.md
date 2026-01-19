@@ -6,7 +6,7 @@ Track Canadian drug shortages and discontinuations in real-time. Search 57,000+ 
 
 ## Why This Exists
 
-The official [Drug Shortages Canada](https://www.drugshortagescanada.ca/) website is frequently slow, occasionally goes down, and can be difficult to navigate. RxWatch provides a faster, more reliable interface to the same official data with better search, filtering, and alternative medication suggestions.
+The official [Health Product Shortages Canada](https://www.healthproductshortages.ca/) website is frequently slow, occasionally goes down, and can be difficult to navigate. RxWatch provides a faster, more reliable interface to the same official data with better search, filtering, and alternative medication suggestions.
 
 ## Features
 
@@ -21,7 +21,7 @@ The official [Drug Shortages Canada](https://www.drugshortagescanada.ca/) websit
 
 | Source | Data | Update Frequency |
 |--------|------|------------------|
-| [Drug Shortages Canada](https://www.drugshortagescanada.ca/) | Shortage reports, discontinuations, status updates | Every 15 min |
+| [Health Product Shortages Canada](https://www.healthproductshortages.ca/) | Shortage reports, discontinuations, status updates | Every 15 min |
 | [Health Canada DPD](https://health-products.canada.ca/api/documentation/dpd-documentation-en.html) | Drug catalog, ingredients, manufacturers, ATC codes | Daily |
 
 ## Tech Stack
@@ -46,7 +46,7 @@ docker compose up -d
 
 # 3. Configure environment
 cp .env.example .env.local
-# Edit .env.local with your DSC credentials (free account at drugshortagescanada.ca)
+# Edit .env.local with your DSC credentials (free account at healthproductshortages.ca)
 
 # 4. Set up database and load data
 yarn db:push

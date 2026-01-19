@@ -586,8 +586,8 @@ function ExternalReportLink({
   t: (key: string, params?: Record<string, string | number | Date>) => string;
 }) {
   const baseUrl = report.type === 'shortage'
-    ? 'https://www.drugshortagescanada.ca/shortage'
-    : 'https://www.drugshortagescanada.ca/discontinuance';
+    ? 'https://www.healthproductshortages.ca/shortage'
+    : 'https://www.healthproductshortages.ca/discontinuance';
 
   return (
     <motion.div
