@@ -9,7 +9,7 @@
  * API Docs: https://www.healthproductshortages.ca/blog/52
  */
 
-const DSC_API_URL = process.env.DSC_API_URL || 'https://www.healthproductshortages.ca/api/v1';
+const DSC_API_URL = process.env.DSC_API_URL || 'https://healthproductshortages.ca/api/v1';
 const TIMEOUT_MS = 60000; // 60 second timeout
 const MAX_RETRIES = 5;
 const BASE_DELAY_MS = 1000;

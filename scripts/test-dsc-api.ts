@@ -6,7 +6,7 @@
 import { config } from 'dotenv';
 config({ path: '.env.local' });
 
-const DSC_API_URL = process.env.DSC_API_URL || 'https://www.healthproductshortages.ca/api/v1';
+const DSC_API_URL = process.env.DSC_API_URL || 'https://healthproductshortages.ca/api/v1';
 const DSC_ACCOUNTS = JSON.parse(process.env.DSC_ACCOUNTS || '[]');
 
 const TIMEOUT_MS = 60000; // 60 second timeout for slow API

@@ -6,7 +6,7 @@
 import { config } from 'dotenv';
 config({ path: '.env.local' });
 
-const DSC_API_URL = process.env.DSC_API_URL || 'https://www.healthproductshortages.ca/api/v1';
+const DSC_API_URL = process.env.DSC_API_URL || 'https://healthproductshortages.ca/api/v1';
 const DPD_API_URL = process.env.DPD_API_URL || 'https://health-products.canada.ca/api/drug';
 const DSC_ACCOUNTS = JSON.parse(process.env.DSC_ACCOUNTS || '[]');
 

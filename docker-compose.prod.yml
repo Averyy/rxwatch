@@ -39,7 +39,7 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-rxwatch}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-rxwatch}
-      DSC_API_URL: ${DSC_API_URL:-https://www.healthproductshortages.ca/api/v1}
+      DSC_API_URL: ${DSC_API_URL:-https://healthproductshortages.ca/api/v1}
       DSC_ACCOUNTS: ${DSC_ACCOUNTS}
       DPD_API_URL: ${DPD_API_URL:-https://health-products.canada.ca/api/drug}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://rxwatch.ca}

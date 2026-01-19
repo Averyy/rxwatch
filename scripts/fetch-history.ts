@@ -13,7 +13,7 @@ import * as path from 'path';
 
 config({ path: '.env.local' });
 
-const DSC_API_URL = process.env.DSC_API_URL || 'https://www.healthproductshortages.ca/api/v1';
+const DSC_API_URL = process.env.DSC_API_URL || 'https://healthproductshortages.ca/api/v1';
 const TIMEOUT_MS = 120000; // 2 min timeout
 const PAGE_SIZE = 100;
 const DELAY_BETWEEN_PAGES_MS = 500; // Be nice to the API

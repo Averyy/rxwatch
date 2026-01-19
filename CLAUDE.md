@@ -42,7 +42,7 @@ Canadian drug shortage lookup tool. Combines Health Product Shortages Canada API
 ## Data Sources
 
 ### Health Product Shortages Canada API (DSC)
-- URL: `https://www.healthproductshortages.ca/api/v1`
+- URL: `https://healthproductshortages.ca/api/v1`
 - Auth: Free account required, rate limit 1000/hr
 - **Response time: SLOW (30s+ timeout)**
 - Docs: https://www.healthproductshortages.ca/blog/52
@@ -130,7 +130,7 @@ yarn db:dump               # Save SQL dump for backup
 
 ```bash
 DATABASE_URL=postgresql://rxwatch:password@localhost:5433/rxwatch
-DSC_API_URL=https://www.healthproductshortages.ca/api/v1
+DSC_API_URL=https://healthproductshortages.ca/api/v1
 DSC_ACCOUNTS='[{"email":"...","password":"..."}]'  # Multiple for failover
 DPD_API_URL=https://health-products.canada.ca/api/drug
 NEXT_PUBLIC_APP_URL=https://rxwatch.ca
