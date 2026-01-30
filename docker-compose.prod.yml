@@ -37,6 +37,7 @@ services:
     image: ${RXWATCH_IMAGE:-ghcr.io/averyy/rxwatch:latest}
     container_name: rxwatch-app
     restart: unless-stopped
+    init: true  # Use tini to reap zombie processes (esbuild spawns children)
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-rxwatch}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-rxwatch}
       DSC_API_URL: ${DSC_API_URL:-https://healthproductshortages.ca/api/v1}
