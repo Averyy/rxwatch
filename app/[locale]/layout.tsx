@@ -12,6 +12,7 @@ import { AppSidebar } from '@/components/app-sidebar';
 import { SiteHeader } from '@/components/site-header';
 import { MobileNavProvider } from '@/components/mobile-nav';
 import { locales, type Locale } from '@/i18n/config';
+import { getAlternates } from '@/lib/metadata';
 
 type Props = {
   children: React.ReactNode;
@@ -29,6 +30,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: t('title'),
     description: t('description'),
+    alternates: getAlternates(locale),
     openGraph: {
       title: t('title'),
       description: t('description'),

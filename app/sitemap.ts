@@ -8,7 +8,7 @@ import { locales } from '@/i18n/config'
 export const revalidate = 172800
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://rxwatch.ca'
-const URLS_PER_SITEMAP = 5000 // Keep sitemaps small (~3MB each) for reliable Google fetching
+const URLS_PER_SITEMAP = 20000 // ~13MB per sitemap, well within Google's 50MB/50k URL limits
 
 // Static pages that don't change often
 const staticPages = [

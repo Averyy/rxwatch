@@ -3,6 +3,7 @@ import { cache } from 'react';
 import { notFound } from 'next/navigation';
 import { db, reports, drugs } from '@/db';
 import { eq } from 'drizzle-orm';
+import { getAlternates } from '@/lib/metadata';
 import ReportDetailClient, { ReportData } from './ReportDetailClient';
 
 // ===========================================
@@ -96,16 +97,13 @@ const getReportData = cache(async (id: string): Promise<ReportData | null> => {
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ locale: string; id: string }>;
 }): Promise<Metadata> {
-  const { id } = await params;
+  const { locale, id } = await params;
   const data = await getReportData(id);
 
   if (!data) {
-    return {
-      title: `Report #${id} - Not Found | RxWatch Canada`,
-      description: `Report #${id} not found in our database.`,
-    };
+    notFound();
   }
 
   const { report } = data;
@@ -135,6 +133,7 @@ export async function generateMetadata({
   return {
     title,
     description,
+    alternates: getAlternates(locale, `/reports/${id}`),
     openGraph: {
       title,
       description,

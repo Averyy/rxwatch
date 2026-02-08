@@ -3,7 +3,8 @@ import { cache } from 'react';
 import { notFound } from 'next/navigation';
 import { db, drugs, reports } from '@/db';
 import { eq, desc } from 'drizzle-orm';
-import DrugDetailClient, { DrugData } from './DrugDetailClient';
+import { getAlternates } from '@/lib/metadata';
+import DrugDetailClient, { type DrugData } from './DrugDetailClient';
 
 // ===========================================
 // UTILITY FUNCTIONS
@@ -87,16 +88,13 @@ const getDrugData = cache(async (din: string): Promise<DrugData | null> => {
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ din: string }>;
+  params: Promise<{ locale: string; din: string }>;
 }): Promise<Metadata> {
-  const { din } = await params;
+  const { locale, din } = await params;
   const data = await getDrugData(din);
 
   if (!data) {
-    return {
-      title: `DIN ${din} - Not Found | RxWatch Canada`,
-      description: `Drug with DIN ${din} not found in our database.`,
-    };
+    notFound();
   }
 
   const { drug } = data;
@@ -125,6 +123,7 @@ export async function generateMetadata({
   return {
     title,
     description,
+    alternates: getAlternates(locale, `/drugs/${din}`),
     openGraph: {
       title,
       description,

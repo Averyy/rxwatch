@@ -1,6 +1,24 @@
+import { Metadata } from 'next';
 import { Suspense } from 'react';
+import { getTranslations } from 'next-intl/server';
+import { getAlternates } from '@/lib/metadata';
 import DrugsPageClient from './DrugsPageClient';
 import { Skeleton } from '@/components/ui/skeleton';
+
+type Props = {
+  params: Promise<{ locale: string }>;
+};
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'DrugsPage' });
+
+  return {
+    title: t('title'),
+    description: t('description'),
+    alternates: getAlternates(locale, '/drugs'),
+  };
+}
 
 // Skeleton loading component for drugs page
 function DrugsPageSkeleton() {
