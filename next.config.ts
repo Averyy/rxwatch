@@ -5,14 +5,6 @@ const withNextIntl = createNextIntlPlugin()
 
 const nextConfig: NextConfig = {
   output: 'standalone',
-  async rewrites() {
-    return [
-      {
-        source: '/sitemap.xml',
-        destination: '/api/sitemap-index',
-      },
-    ]
-  },
   async headers() {
     return [
       {

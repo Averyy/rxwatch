@@ -4,11 +4,11 @@ import { drugs, reports } from '@/db/schema'
 import { sql } from 'drizzle-orm'
 import { locales } from '@/i18n/config'
 
-// Force dynamic generation - sitemap needs live DB data
-export const dynamic = 'force-dynamic'
+// Regenerate sitemaps every 48 hours (drug catalog rarely changes)
+export const revalidate = 172800
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://rxwatch.ca'
-const URLS_PER_SITEMAP = 20000 // Reduced to accommodate both locales (2x URLs)
+const URLS_PER_SITEMAP = 5000 // Keep sitemaps small (~3MB each) for reliable Google fetching
 
 // Static pages that don't change often
 const staticPages = [
